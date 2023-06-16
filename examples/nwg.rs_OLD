@@ -1,0 +1,246 @@
+//#![windows_subsystem = "windows"]
+
+use std::{rc::{Rc, Weak}, cell::RefCell, any::Any, clone};
+
+use regui::{kits::nwg::{components::{Button, Label, GridLayout, ChildPlacement, self, WindowingComponent, WindowingStateProps, StateProps, StateChildComponent}, NwgCtx, NwgChildComponent, NwgWidget, ChildListBuilder, WrapIntoNwgChildComponent, Application}, Callback, functional_component::{StateManager, UiBuilder, StateLink}, component::{Component, ComponentProps, self}};
+
+extern crate native_windows_gui as nwg;
+
+fn main() {
+    let app = Application::new();
+
+    //Window::new(app.ctx()).run(|window| Example {
+    //    close_window: Callback::no_args(move || window.close()),
+    //});
+
+    //start(&app);
+
+    app.ctx().run_ui(Ui {});
+
+    //let _ui = MyUi::build(&ctx, ());
+}
+
+struct Ui {
+}
+
+impl WindowingStateProps for Ui {
+    type State = ();
+    fn build_state(self, old_state: Option<Self::State>) -> Self::State {
+        ()
+    }
+    fn build_ui(builder: &UiBuilder<NwgCtx>, state: &Self::State, link: StateLink<Self::State, NwgCtx>) {
+        builder.get(components::Window {
+            id: Some((line!(), "")),
+            title: "Basic example 2".into(),
+            content: Example::default(),
+            ..Default::default()
+        });
+        //let w = builder.get(components::Window {
+        //    id: Some((line!(), "")),
+        //    title: "Basic example 3".into(),
+        //    ..Default::default()
+        //});
+    }
+}
+
+fn some_button() -> Button {
+    Button {
+        text: "some_button".into(),
+        position: Some((0, 75)),
+        ..Default::default()
+    }
+}
+
+#[derive(Clone)]
+struct Example {
+    close_window: Callback,
+}
+
+impl Default for Example {
+    fn default() -> Self {
+        Self {
+            close_window: Callback::no_args(|| {}),
+        }
+    }
+}
+
+impl StateProps for Example {
+    type State = (String, Callback);
+    type Out = Rc<RefCell<dyn NwgChildComponent>>;
+    fn build_state(self, _old_state: Option<Self::State>) -> Self::State {
+        ("hello".into(), self.close_window)
+    }
+    fn build_ui(builder: &UiBuilder<NwgCtx>, state: &Self::State, link: StateLink<Self::State, NwgCtx>) -> Self::Out {
+        let mut builder = ChildListBuilder::new(builder)
+            .with(Button {
+                text: state.0.clone().into(),
+                on_click: Callback::no_args({
+                    let link = link.clone();
+                    move || link.update(|s| s.0 = "world".into())
+                }),
+                ..Default::default()
+            })
+            .with(Button {
+                text: state.clone().0.into(),
+                position: Some((100, 0)),
+                on_click: Callback::no_args({
+                    let link = link.clone();
+                    move || link.update(|s| s.0 = "hello".into())
+                }),
+                ..Default::default()
+            })
+            .with(Button {
+                text: "CLOSE".into(),
+                position: Some((0, 25)),
+                size: Some((200, 50)),
+                on_click: state.1.clone(),
+                ..Default::default()
+            });
+
+        if state.0 == "hello" {
+            builder.add(some_button());
+        }
+
+
+        builder
+            .build()
+            .wrap()
+    }
+}
+
+impl ComponentProps<NwgCtx> for Example {
+    type AssociatedComponent = StateChildComponent<Self>;
+}
+
+
+/*
+
+#[derive(Clone, Debug)]
+struct MyUiState {
+    counter: i32,
+    en: bool,
+}
+
+struct MyUi {
+    _state_manager: StateManager<MyUiState, NwgCtx>,
+    //layout: Option<Rc<dyn Any>>,
+}
+
+impl Component<NwgCtx> for MyUi {
+    type Props = ();
+    fn build(ctx: &NwgCtx, _props: Self::Props) -> Self {
+
+        let manager = StateManager::new_with(ctx.clone(), MyUiState {
+            counter: 0,// + 20,
+            en: true,
+        });
+
+        let ctx = ctx.clone();
+
+        manager.set_builder(move |state, builder, link| {
+
+            let mut list = GridLayout::list_builder(builder);
+            for i in 0..state.counter {
+                let link = link.clone();
+                list.add(
+                    (i as u32 / 5, i as u32 % 5).into(),
+                    Button {
+                        text: format!("Button {}", i).into(),
+                        size: Some((100, 30)),
+                        on_click: Callback::no_args(move || link.update(|s| s.counter += if i % 2 == 0 { 1 } else { -1 })),
+                        ..Default::default()
+                    }
+                );
+            }
+            let mut b = Button::default();
+            b.text = "Button 1".into();
+
+            list.add((0, 0, 2, 1).into(), b.clone());
+            list.add((0, 1, 1, 1).into(), b);
+            list.add((0, 2, 2, 1).into(), Button::default());
+
+            //builder.get(Button {
+            //    text: "Button A".into(),
+            //    position: None,
+            //    ..Default::default()
+            //});
+
+            builder.get(GridLayout {
+                children: list.build(),
+                //spacing: s.counter as u32,
+                ..Default::default()
+            //}).borrow_mut().set_parent_window_handle(ctx.window().handle);
+            }).borrow_mut().set_parent_window_handle(ctx.window().handle, &ctx);
+
+            return;
+
+            let on_click_1 = {
+                let link = link.clone();
+                Callback::no_args(move || {
+                    println!("Button 1 clicked");
+                    link.update(|s| s.counter += 1);
+                })
+            };
+
+            let on_click_2 = {
+                let link = link.clone();
+                Callback::no_args(move || link.update(|s| s.counter -= 1))
+            };
+
+            builder.get(Button {
+                text: "Button 1".into(),
+                position: None,
+                on_click: on_click_1,
+                ..Default::default()
+            });
+
+            builder.get(Button {
+                text: state.counter.to_string().into(),
+                position: Some((state.counter * 5, 40)),
+                on_click: on_click_2,
+                ..Default::default()
+            });
+
+            if state.counter % 2 == 0 {
+                builder.get(Button {
+                    id: Some(0),
+                    text: "Button 4".into(),
+                    position: Some((100, 100)),
+                    on_click: Callback::no_args(|| println!("Button 4 clicked")),
+                    ..Default::default()
+                });
+            }
+
+            builder.get(Button {
+                text: "Button 3".into(),
+                position: Some((100, 70)),
+                on_click: Callback::no_args(|| println!("Button 3 clicked")),
+                enabled: state.counter % 3 == 0,
+                ..Default::default()
+            });
+
+            builder.get(Label {
+                text: format!("count: {}", state.counter).into(),
+                position: Some((150, 50)),
+                ..Default::default()
+            });
+
+            builder.get(some_button());
+
+            builder.get(Button {
+                text: format!("count: {}", state.counter).into(),
+                position: Some((200, 0)),
+                enabled: state.en,
+                on_click: Callback::no_args(move || link.update(|s| s.en = false)),
+                ..Default::default()
+            });
+        });
+
+        Self {
+            _state_manager: manager,
+        }
+    }
+
+    fn changed(&mut self, _props: Self::Props, _ctx: &NwgCtx) {
+    }
+}*/

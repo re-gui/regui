@@ -1,6 +1,6 @@
 use std::{rc::{Rc, Weak}, any::Any, cell::RefCell};
 
-use crate::component::{ComponentProps, Component, LiveValue};
+use crate::component::{ComponentProps, Component, LiveValue, LiveLink, AsLiveValue, LiveValueEmitter};
 
 pub struct StateManagerInner<State> {
     state: Option<State>,
@@ -115,6 +115,7 @@ pub struct ComponentsCacheData {
 
 pub struct ComponentsCache {
     data: RefCell<ComponentsCacheData>,
+    live_link: Rc<RefCell<LiveLink>>,
 }
 
 impl ComponentsCache {
@@ -124,7 +125,14 @@ impl ComponentsCache {
                 components: Vec::new(),
                 components_pos: 0,
             }),
+            live_link: Rc::new(RefCell::new(LiveLink::new())),
         }
+    }
+
+    // TODO ???
+    pub fn emitter(&self) -> LiveValueEmitter {
+        let (_, emitter) = self.live_link.borrow_mut().make_live_value(()).into_tuple();
+        emitter
     }
 
     pub fn get_live<Props: ComponentProps, T>(&self, props: Props) -> T
@@ -132,7 +140,12 @@ impl ComponentsCache {
         Props::AssociatedComponent: Component<Output = LiveValue<T>>,
     {
         let (value, emitter) = self.component::<Props::AssociatedComponent>(props).into_tuple();
-        
+        emitter.listen({
+            let live_link = self.live_link.clone();
+            move || {
+                live_link.borrow_mut().tell_update();
+            }
+        });
         value
     }
 

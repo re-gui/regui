@@ -108,8 +108,7 @@ impl StateProps for MyWindow {
             window
         });
 
-        let nodes = cache.get(MyComp);
-        let (nodes, emitter) = nodes.into_tuple();
+        let nodes = cache.get_live(MyComp);
         for node in nodes {
             let _ = node.borrow_mut().handle_from_parent(&window.handle);
         }
@@ -196,7 +195,9 @@ impl StateProps for MyComp {
         //println!("DATA: {:?}", link.live_value().current_value().len());
         //println!("DATA: {:?}", link.live_value().current_value().len());
 
-        (v, true)
+        let changed = old_data.map(|old_data| old_data.len() != v.len()).unwrap_or(true);
+
+        (v, changed)
     }
     fn build_result(data: &Self::Data) -> Self::Out {
         println!("BUILD RESULT");
@@ -214,6 +215,10 @@ pub trait StateProps: 'static { // TODO remove 'static
     fn build_data(data: Option<Self::Data>, state: &Self::State, link: StateLink<Self::State>, cache: &ComponentsCache) -> (Self::Data, bool);
     #[must_use]
     fn build_result(data: &Self::Data) -> Self::Out;
+}
+
+pub trait CommonComponent {
+
 }
 
 struct LiveStateComponent<Props: StateProps> {
@@ -240,6 +245,13 @@ impl<Props: StateProps> Component for LiveStateComponent<Props> {
         let data = Rc::new(RefCell::new(Some(data)));
 
         let live_link = LiveLink::new();
+
+        components_cache.borrow_mut().emitter().listen({
+            let link = state_manager.link();
+            move || {
+                link.update(|_| {});
+            }
+        });
 
         state_manager.set_builder({
             let components_cache = components_cache.clone();

@@ -5,7 +5,7 @@
 use std::{rc::{Rc, Weak}, cell::RefCell};
 
 /// A "**stateful function**".
-pub trait Component: 'static { // TODO remove 'static
+pub trait StateFunction: 'static { // TODO remove 'static
     type Props;
     //type Input;
     type Output;
@@ -98,12 +98,12 @@ impl<T> AsLiveValue<T> for T {
     }
 }
 
-/// Declares a univoque relationship <code>[Component::Props] -> [Component]</code>.
+/// Declares a univoque relationship <code>[StatefulFunction::Props] -> [StatefulFunction]</code>.
 ///
-/// When a type implements this trait, it means that it has a corresponding [`Component`] that can be built from its props.
-pub trait ComponentProps: Sized {
-    type AssociatedComponent: Component<Props = Self>;
-    fn build(self) -> (<Self::AssociatedComponent as Component>::Output, Self::AssociatedComponent) {
+/// When a type implements this trait, it means that it has a corresponding [`StatefulFunction`] that can be built from its props.
+pub trait StateFunctionProps: Sized {
+    type AssociatedComponent: StateFunction<Props = Self>;
+    fn build(self) -> (<Self::AssociatedComponent as StateFunction>::Output, Self::AssociatedComponent) {
         Self::AssociatedComponent::build(self)
     }
 }

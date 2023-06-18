@@ -3,7 +3,7 @@ use std::{rc::Rc, cell::RefCell};
 
 use native_windows_gui as nwg;
 
-use crate::{kits::nwg::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent}, component::{Component, ComponentProps}};
+use crate::{kits::nwg::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent}, state_function::{StateFunction, StateFunctionProps}};
 
 impl NwgNativeCommonControl for nwg::Button {
     fn handle(&self) -> &nwg::ControlHandle {
@@ -33,7 +33,7 @@ impl Default for Button {
     }
 }
 
-impl ComponentProps for Button {
+impl StateFunctionProps for Button {
     type AssociatedComponent = ButtonComponent;
 }
 
@@ -43,7 +43,7 @@ pub struct ButtonComponent {
     props: Button,
 }
 
-impl Component for ButtonComponent {
+impl StateFunction for ButtonComponent {
     type Props = Button;
     type Output = NwgControlNode;
 

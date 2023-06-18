@@ -4,7 +4,7 @@ use std::{rc::Rc, cell::RefCell};
 //use regui::Callback;
 
 use native_windows_gui as nwg;
-use regui::{kits::nwg::{components::Button, NwgControlNode}, component::{Component, LiveValue, LiveLink, ComponentProps}, functional_component::{ComponentsCache, StateLink, StateManager}};
+use regui::{kits::nwg::{components::Button, NwgControlNode}, state_function::{StateFunction, LiveValue, LiveLink, StateFunctionProps}, functional_component::{StateLink, StateManager, FunctionsCache}};
 
 fn main() {
     //let cb = Callback::from(|x: i32, y: ()| x + 1);
@@ -45,7 +45,7 @@ fn main() {
 
     //exec(window.handle, MyComp);
 
-    let (_out, _component) = LiveStateComponent::<MyWindow>::build(MyWindow {});
+    let (_out, _component) = LiveStateComponent::<MyWindowState>::build(MyWindowProps {});
 
     nwg::dispatch_thread_events();
 
@@ -83,203 +83,186 @@ fn main() {
 //    //component.mount(window_handle);
 //}
 
-struct MyWindow {
+struct MyWindowProps {
 }
 
-impl StateProps for MyWindow {
-    type State = ();
-    type Data = nwg::Window;
+struct MyWindowState {
+    window: nwg::Window,
+}
+
+impl Component for MyWindowState {
+    type Props = MyWindowProps;
     type Out = ();
 
-    fn build_state(self, old_state: Option<Self::State>) -> Self::State {
-        ()
+    fn build(props: Self::Props) -> Self {
+        let mut window = nwg::Window::default();
+
+        nwg::Window::builder()
+            //.flags(WindowFlags::MAIN_WINDOW)
+            .size((300, 115))
+            .title("Hello")
+            .build(&mut window)
+            .expect("Failed to build window");
+
+        Self {
+            window,
+        }
     }
-    fn build_data(data: Option<Self::Data>, state: &Self::State, link: StateLink<Self::State>, cache: &ComponentsCache) -> (Self::Data, bool) {
-        let window = data.unwrap_or_else(|| {
-            let mut window = nwg::Window::default();
-
-            nwg::Window::builder()
-                //.flags(WindowFlags::MAIN_WINDOW)
-                .size((300, 115))
-                .title("Hello")
-                .build(&mut window)
-                .expect("Failed to build window");
-
-            window
-        });
-
-        let nodes = cache.get_live(MyComp);
+    fn update(&mut self, props: Self::Props) {
+    }
+    fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out {
+        let nodes = cache.eval_live(MyCompProps);
         for node in nodes {
-            let _ = node.borrow_mut().handle_from_parent(&window.handle);
+            let _ = node.borrow_mut().handle_from_parent(&self.window.handle);
         }
 
         //emitter.listen(move || {
         //    link.update(|_| {});
         //});
 
-        (window, true)
-    }
-    fn build_result(data: &Self::Data) -> Self::Out {
         ()
     }
 }
 
-impl ComponentProps for MyWindow {
-    type AssociatedComponent = LiveStateComponent<MyWindow>;
+impl StateFunctionProps for MyWindowProps {
+    type AssociatedComponent = LiveStateComponent<MyWindowState>;
 }
 
 #[derive(Clone)]
-struct MyComp;
+struct MyCompProps;
 
-impl ComponentProps for MyComp {
-    type AssociatedComponent = LiveStateComponent<MyComp>;
+#[derive(Clone)]
+struct MyCompState {
+    text: String,
 }
 
-/*impl StateProps for MyComp {
-    type State = ();
-    type Out = components::Label;
-    fn build_state(self, old_state: Option<Self::State>) -> Self::State {
-        ()
-    }
-    fn build_ui(builder: &ComponentsCache, state: &Self::State, link: StateLink<Self::State>) -> Self::Out {
-        components::Label {
+impl StateFunctionProps for MyCompProps {
+    type AssociatedComponent = LiveStateComponent<MyCompState>;
+}
+
+impl Component for MyCompState {
+    type Props = MyCompProps;
+    type Out = Vec<NwgControlNode>;
+    fn build(props: Self::Props) -> Self {
+        Self {
             text: "ciao".into(),
-            ..Default::default()
         }
     }
-}*/
-
-impl StateProps for MyComp {
-    type State = String;
-    type Data = Vec<NwgControlNode>;
-    type Out = Vec<NwgControlNode>;
-    fn build_state(self, old_state: Option<Self::State>) -> Self::State {
-        println!("BUILD STATE: {:?}", old_state);
-        old_state.unwrap_or("ciao".into())
+    fn update(&mut self, props: Self::Props) {
     }
-    fn build_data(mut old_data: Option<Self::Data>, state: &Self::State, link: StateLink<Self::State>, cache: &ComponentsCache) -> (Self::Data, bool) {
-        println!("BUILD DATA STATE: {:?}", state);
+    fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out {
+        println!("view");
         let mut v = vec![
-            cache.get(Button {
-                text: state.clone(),
+            cache.eval(Button {
+                text: self.text.clone(),
                 on_click: Rc::new({
                     let link = link.clone();
                     move || {
                         link.update(|state| {
-                            state.push_str("a");
+                            state.text.push_str("a");
                         });
                     }
                 }),
                 ..Default::default()
             }),
-            cache.get(Button {
-                text: state.clone(),
-                position: Some((10, 50)),
+            cache.eval(Button {
+                text: self.text.clone(),
+                position: Some((10 * self.text.len() as i32 - 40, 50)),
                 on_click: Rc::new(move || {
                     link.update(|state| {
-                        state.push_str("b");
+                        state.text.push_str("b");
                         nwg::stop_thread_dispatch();
                     });
                 }),
                 ..Default::default()
             })
         ];
-        if state.len() % 2 == 0 {
-            v.push(cache.get(Button {
-                text: state.clone(),
+        if self.text.len() % 2 == 0 {
+            v.push(cache.eval(Button {
+                text: self.text.clone(),
                 position: Some((0, 75)),
                 ..Default::default()
             }));
         }
 
-        //println!("DATA: {:?}", link.live_value().current_value().len());
-        //println!("DATA: {:?}", link.live_value().current_value().len());
-
-        let changed = old_data.map(|old_data| old_data.len() != v.len()).unwrap_or(true);
-
-        (v, changed)
-    }
-    fn build_result(data: &Self::Data) -> Self::Out {
-        println!("BUILD RESULT");
-        data.clone()
+        v
     }
 }
 
-pub trait StateProps: 'static { // TODO remove 'static
-    type State;
-    type Data;
-    type Out;
+pub trait Component: Sized + 'static { // TODO remove 'static
+    type Props;
+    type Out: PartialEq + Clone + 'static;
     #[must_use]
-    fn build_state(self, old_state: Option<Self::State>) -> Self::State;
+    fn build(props: Self::Props) -> Self;
+    fn update(&mut self, props: Self::Props);
     #[must_use]
-    fn build_data(data: Option<Self::Data>, state: &Self::State, link: StateLink<Self::State>, cache: &ComponentsCache) -> (Self::Data, bool);
-    #[must_use]
-    fn build_result(data: &Self::Data) -> Self::Out;
+    fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out;
 }
 
-pub trait CommonComponent {
+//struct Context<C: Component> {
+//}
 
-}
+//pub trait Component: Sized + 'static { // TODO possibly remove 'static
+//    type Props: StateProps;
+//    fn build(props: Self::Props, ctx: &Context<Self>) -> Self;
+//    fn update(&mut self, props: Self::Props, ctx: &Context<Self>);
+//}
 
-struct LiveStateComponent<Props: StateProps> {
-    state_manager: StateManager<Props::State>,
-    components_cache: Rc<RefCell<ComponentsCache>>,
-    data: Rc<RefCell<Option<Props::Data>>>,
+struct LiveStateComponent<SC: Component> {
+    state_manager: Rc<RefCell<StateManager<SC>>>,
+    components_cache: Rc<RefCell<FunctionsCache>>,
+    out: Rc<RefCell<SC::Out>>,
     live_link: LiveLink,
 }
 
-impl<Props: StateProps> Component for LiveStateComponent<Props> {
-    type Props = Props;
-    type Output = LiveValue<Props::Out>;
+impl<SC: Component> StateFunction for LiveStateComponent<SC> {
+    type Props = SC::Props;
+    type Output = LiveValue<SC::Out>;
     fn build(props: Self::Props) -> (Self::Output, Self) {
 
-        let state = props.build_state(None);
-        let state_manager = StateManager::<Props::State>::new_with(state);
-        let components_cache = Rc::new(RefCell::new(ComponentsCache::new()));
+        let component = SC::build(props);
+        let state_manager = StateManager::<SC>::new(component);
+        let cache = Rc::new(RefCell::new(FunctionsCache::new()));
 
-        let state = state_manager.take_state();
-        let (data, _rerender) = Props::build_data(None, state.as_ref().unwrap(), state_manager.link(), &components_cache.borrow_mut());
-        components_cache.borrow_mut().finish();
-        state_manager.link().set(state.unwrap());
-        let result = Props::build_result(&data);
-        let data = Rc::new(RefCell::new(Some(data)));
+        let result = {
+            let result = state_manager.on_state(|component| {
+                component.view(state_manager.link(), &cache.borrow_mut())
+            });
+            cache.borrow_mut().finish();
+            result
+        };
+        let out = Rc::new(RefCell::new(result.clone()));
 
         let live_link = LiveLink::new();
 
-        components_cache.borrow_mut().emitter().listen({
+        cache.borrow_mut().emitter().listen({
             let link = state_manager.link();
             move || {
                 link.update(|_| {});
             }
         });
 
-        state_manager.set_builder({
-            let components_cache = components_cache.clone();
-            let to_rebuild = Rc::new(RefCell::new(false));
-            let data = data.clone();
+        let state_manager = Rc::new(RefCell::new(state_manager));
+
+        state_manager.borrow_mut().set_builder({
+            let cache = cache.clone();
+            let out = out.clone();
             let live_link = live_link.clone();
-            move |state, link| {
-                if let Ok(mut components_cache) = components_cache.try_borrow_mut() {
-                    *to_rebuild.borrow_mut() = true;
-                    let mut to_rerender = false;
-                    while to_rebuild.borrow().clone() {
-                        *to_rebuild.borrow_mut() = false;
-                        {
-                            let mut data = data.borrow_mut();
-                            let data_content = data.take();
-                            assert!(data_content.is_some());
-                            let (data_content, rerender) = Props::build_data(data_content, state, link.clone(), &components_cache);
-                            to_rerender |= rerender;
-                            components_cache.finish();
-                            data.replace(data_content);
-                        }
-                        // TODO get_live
-                        if to_rerender {
-                            live_link.tell_update();
-                        }
-                    }
-                } else {
-                    *to_rebuild.borrow_mut() = true;
+            let state_manager = state_manager.clone();
+            move |link| {
+                let mut cache = cache.borrow_mut();
+                let new_result = {
+                    let result = state_manager.borrow().on_state(|component| {
+                        component.view(link.clone(), &cache)
+                    });
+                    cache.finish();
+                    result
+                };
+                if new_result != *out.borrow() {
+                    // set new result
+                    *out.borrow_mut() = new_result.clone();
+                    // signal change
+                    live_link.tell_update();
                 }
             }
         });
@@ -288,18 +271,18 @@ impl<Props: StateProps> Component for LiveStateComponent<Props> {
             live_link.make_live_value(result),
             Self {
                 state_manager,
-                components_cache,
-                data,
+                components_cache: cache,
+                out,
                 live_link,
             }
         )
     }
     fn changed(&mut self, props: Self::Props) -> Self::Output {
-        //let state = props.build_state(self.state_manager.take_state());
-        //self.component.borrow_mut().changed(Props::build_ui(&ComponentsCache::new(), &state, self.state_manager.link()));
-        let data = self.data.borrow();
-        let result = Props::build_result(data.as_ref().unwrap());
-        self.live_link.make_live_value(result)
+        self.state_manager.borrow().on_mut_state(|component| {
+            component.update(props);
+        });
+        // TODO run
+        self.live_link.make_live_value(self.out.borrow().clone())
     }
     //fn eval(&mut self, input: Self::Input) -> Self::Output {
     //    self.component.borrow_mut().eval(input)

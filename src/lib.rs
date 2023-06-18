@@ -17,7 +17,7 @@ macro_rules! comp {
 }
 */
 
-pub mod component;
+pub mod state_function;
 pub mod context;
 pub mod functional_component;
 pub mod kits;

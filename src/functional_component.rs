@@ -1,43 +1,54 @@
 use std::{rc::{Rc, Weak}, any::Any, cell::RefCell};
 
-use crate::component::{ComponentProps, Component, LiveValue, LiveLink, AsLiveValue, LiveValueEmitter};
+use crate::state_function::{StateFunctionProps, StateFunction, LiveValue, LiveLink, LiveValueEmitter};
 
 pub struct StateManagerInner<State> {
-    state: Option<State>,
-    builder_fn: Option<Box<dyn FnMut(&State, StateLink<State>)>>,
+    state: RefCell<State>,
+    builder_fn: RefCell<Rc<dyn Fn(StateLink<State>)>>, // TODO maybe Rc is not needed
+    to_rerun: RefCell<bool>,
+    in_run: RefCell<bool>,
 }
 
 impl<State> StateManagerInner<State> {
-    fn run(&mut self, self_link: StateLink<State>) {
-        if let Some(build) = &mut self.builder_fn {
-            build(
-                self.state.as_ref().expect("state is not set, cannot update before state is set"),
-                self_link, // TODO enforce at compile time that this is a link to self, maybe moving the run method to the link
-            );
-        }
-    }
-}
-
-pub struct StateManager<P> {
-    inner: Rc<RefCell<StateManagerInner<P>>>,
-}
-
-impl<P: 'static> StateManager<P> {
-    pub fn new() -> Self {
-        Self {
-            inner: Rc::new(RefCell::new(StateManagerInner {
-                state: None,
-                builder_fn: None,
-            })),
+    fn run(&self, self_link: StateLink<State>) {
+        *self.to_rerun.borrow_mut() = true;
+        if *self.in_run.borrow() {
+            return;
+        } else {
+            *self.in_run.borrow_mut() = true;
+            while *self.to_rerun.borrow() {
+                *self.to_rerun.borrow_mut() = false;
+                let build = self.builder_fn.borrow().clone();
+                build(self_link.clone());
+            }
+            *self.in_run.borrow_mut() = false;
         }
     }
 
-    pub fn new_with(props: P) -> Self {
+    fn on_state<R>(&self, on_state: impl FnOnce(&State) -> R) -> R {
+        let state = self.state.borrow();
+        on_state(&state)
+    }
+
+    fn on_mut_state<R>(&self, on_state: impl FnOnce(&mut State) -> R) -> R {
+        let mut state = self.state.borrow_mut();
+        on_state(&mut state)
+    }
+}
+
+pub struct StateManager<State> {
+    inner: Rc<StateManagerInner<State>>,
+}
+
+impl<State: 'static> StateManager<State> {
+    pub fn new(state: State) -> Self {
         Self {
-            inner: Rc::new(RefCell::new(StateManagerInner {
-                state: Some(props),
-                builder_fn: None,
-            })),
+            inner: Rc::new(StateManagerInner {
+                state: RefCell::new(state),
+                builder_fn: RefCell::new(Rc::new(|_| {})),
+                to_rerun: RefCell::new(false),
+                in_run: RefCell::new(false),
+            }),
         }
     }
 
@@ -50,26 +61,38 @@ impl<P: 'static> StateManager<P> {
     //    manager.run(self.link());
     //}
 
-    pub fn set_builder(&self, builder: impl FnMut(&P/*, &UiBuilder<Ctx>*/, StateLink<P>) + 'static) {
-        let mut manager = self.inner.borrow_mut();
-        manager.builder_fn = Some(Box::new(builder));
+    pub fn set_builder(&self, builder: impl Fn(StateLink<State>) + 'static) {
+        *self.inner.builder_fn.borrow_mut() = Rc::new(builder);
     }
 
-    pub fn link(&self) -> StateLink<P> {
+    pub fn link(&self) -> StateLink<State> {
         StateLink {
             state: Rc::downgrade(&self.inner),
         }
     }
 
-    pub fn take_state(&self) -> Option<P> {
-        // TODO to check
-        let mut manager = self.inner.borrow_mut();
-        manager.state.take()
+    //pub fn take_state(&self) -> Option<State> {
+    //    // TODO to check
+    //    let mut manager = self.inner.borrow_mut();
+    //    manager.state.take()
+    //}
+
+    //pub fn set_state(&self, state: State) {
+    //    self.inner.borrow_mut().state = Some(state);
+    //    self.inner.borrow().run(self.link()); // TODO run???
+    //}
+
+    pub fn on_state<R>(&self, on_state: impl FnOnce(&State) -> R) -> R {
+        self.inner.on_state(on_state)
+    }
+
+    pub fn on_mut_state<R>(&self, on_state: impl FnOnce(&mut State) -> R) -> R {
+        self.inner.on_mut_state(on_state)
     }
 }
 
 pub struct StateLink<P> {
-    state: Weak<RefCell<StateManagerInner<P>>>,
+    state: Weak<StateManagerInner<P>>,
 }
 
 impl<P> Clone for StateLink<P> {
@@ -80,22 +103,22 @@ impl<P> Clone for StateLink<P> {
     }
 }
 
-impl<P> StateLink<P> {
+impl<State> StateLink<State> {
 
-    pub fn set(&self, state: P) {
-        if let Some(manager) = self.state.upgrade() {
-            let mut manager = manager.borrow_mut();
-            manager.state = Some(state);
-            manager.run(self.clone());
-        }
-        // if expired, no effect
-    }
+    //pub fn set(&self, state: P) {
+    //    if let Some(manager) = self.state.upgrade() {
+    //        manager.borrow_mut().state = Some(state);
+    //        manager.borrow().run(self.clone());
+    //    }
+    //    // if expired, no effect
+    //}
 
-    pub fn update(&self, update: impl FnOnce(&mut P)) {
+    pub fn update(&self, update: impl FnOnce(&mut State)) {
         // TODO call self.set, instead of duplicating the code
         if let Some(manager) = self.state.upgrade() {
-            let mut manager = manager.borrow_mut();
-            update(manager.state.as_mut().unwrap());
+            let _r = manager.on_mut_state(|state| {
+                update(state);
+            });
             manager.run(self.clone());
         }
         // if expired, no effect
@@ -108,22 +131,22 @@ impl<P> StateLink<P> {
     //}
 }
 
-pub struct ComponentsCacheData {
-    components: Vec<Rc<dyn Any>>,
-    components_pos: usize,
+pub struct FunctionsCacheData {
+    functions: Vec<Rc<dyn Any>>,
+    functions_pos: usize,
 }
 
-pub struct ComponentsCache {
-    data: RefCell<ComponentsCacheData>,
+pub struct FunctionsCache {
+    data: RefCell<FunctionsCacheData>,
     live_link: Rc<RefCell<LiveLink>>,
 }
 
-impl ComponentsCache {
+impl FunctionsCache {
     pub fn new() -> Self {
         Self {
-            data: RefCell::new(ComponentsCacheData {
-                components: Vec::new(),
-                components_pos: 0,
+            data: RefCell::new(FunctionsCacheData {
+                functions: Vec::new(),
+                functions_pos: 0,
             }),
             live_link: Rc::new(RefCell::new(LiveLink::new())),
         }
@@ -135,11 +158,11 @@ impl ComponentsCache {
         emitter
     }
 
-    pub fn get_live<Props: ComponentProps, T>(&self, props: Props) -> T
+    pub fn eval_live<Props: StateFunctionProps, T>(&self, props: Props) -> T
     where
-        Props::AssociatedComponent: Component<Output = LiveValue<T>>,
+        Props::AssociatedComponent: StateFunction<Output = LiveValue<T>>,
     {
-        let (value, emitter) = self.component::<Props::AssociatedComponent>(props).into_tuple();
+        let (value, emitter) = self.eval_state_function::<Props::AssociatedComponent>(props).into_tuple();
         emitter.listen({
             let live_link = self.live_link.clone();
             move || {
@@ -149,39 +172,39 @@ impl ComponentsCache {
         value
     }
 
-    pub fn get<Props: ComponentProps>(&self, props: Props) -> <Props::AssociatedComponent as Component>::Output {
-        self.component::<Props::AssociatedComponent>(props)
+    pub fn eval<Props: StateFunctionProps>(&self, props: Props) -> <Props::AssociatedComponent as StateFunction>::Output {
+        self.eval_state_function::<Props::AssociatedComponent>(props)
     }
 
     // TODO get_if_new and get_if_changed
 
-    pub fn component<C: Component>(&self, props: C::Props) -> C::Output {
+    pub fn eval_state_function<SF: StateFunction>(&self, props: SF::Props) -> SF::Output {
         let mut data = self.data.borrow_mut();
-        let pos = data.components_pos;
-        let result = if pos < data.components.len() {
-            let component = data.components[pos].clone().downcast::<RefCell<C>>();
-            let component = if let Ok(component) = component {
-                if component.borrow().reuse_with(&props) {
-                    component.borrow_mut().changed(props)
+        let pos = data.functions_pos;
+        let result = if pos < data.functions.len() {
+            let function = data.functions[pos].clone().downcast::<RefCell<SF>>();
+            let function = if let Ok(function) = function {
+                if function.borrow().reuse_with(&props) {
+                    function.borrow_mut().changed(props)
                 } else { // TODO avoid this IF nesting and else block code repetition
-                    let (result, component) = C::build(props);
+                    let (result, component) = SF::build(props);
                     let component = Rc::new(RefCell::new(component));
-                    data.components[pos] = component.clone();
+                    data.functions[pos] = component.clone();
                     result
                 }
             } else {
-                let (result, component) = C::build(props);
-                let component = Rc::new(RefCell::new(component));
-                data.components.insert(pos, component.clone());
+                let (result, component) = SF::build(props);
+                let function = Rc::new(RefCell::new(component));
+                data.functions.insert(pos, function.clone());
                 result
             };
-            data.components_pos += 1;
-            component
+            data.functions_pos += 1;
+            function
         } else {
-            let (result, component) = C::build(props);
-            let component = Rc::new(RefCell::new(component));
-            data.components.push(component.clone());
-            data.components_pos = data.components.len();
+            let (result, function) = SF::build(props);
+            let function = Rc::new(RefCell::new(function));
+            data.functions.push(function.clone());
+            data.functions_pos = data.functions.len();
             result
         };
 
@@ -191,8 +214,8 @@ impl ComponentsCache {
     // TODO hide to the user using another struct
     pub fn finish(&mut self) {
         let mut data = self.data.borrow_mut();
-        let pos = data.components_pos;
-        data.components.truncate(pos);
-        data.components_pos = 0;
+        let pos = data.functions_pos;
+        data.functions.truncate(pos);
+        data.functions_pos = 0;
     }
 }

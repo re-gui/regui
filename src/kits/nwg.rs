@@ -3,7 +3,7 @@ use std::{rc::{Rc, Weak}, cell::RefCell, ops::Deref};
 
 use native_windows_gui as nwg;
 
-use crate::component::Component;
+use crate::state_function::StateFunction;
 
 //use crate::Callback;
 
@@ -64,7 +64,7 @@ impl<Control: NwgNativeCommonControl> NativeCommonComponentComponent<Control> {
     }
 }
 
-impl<Control: NwgNativeCommonControl> Component for NativeCommonComponentComponent<Control> {
+impl<Control: NwgNativeCommonControl> StateFunction for NativeCommonComponentComponent<Control> {
     type Props = NativeCommonComponent<Control>;
     type Output = NwgControlNode;
     fn build(props: Self::Props) -> (Self::Output, Self) {

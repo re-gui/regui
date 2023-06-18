@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use native_windows_gui as nwg;
 
-use crate::{kits::nwg::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent}, component::{Component, ComponentProps}};
+use crate::{kits::nwg::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent}, state_function::{StateFunction, StateFunctionProps}};
 
 impl NwgNativeCommonControl for nwg::Label {
     fn handle(&self) -> &nwg::ControlHandle {
@@ -31,7 +31,7 @@ impl Default for Label {
     }
 }
 
-impl ComponentProps for Label {
+impl StateFunctionProps for Label {
     type AssociatedComponent = LabelComponent;
 }
 
@@ -40,7 +40,7 @@ pub struct LabelComponent {
     props: Label,
 }
 
-impl Component for LabelComponent {
+impl StateFunction for LabelComponent {
     type Props = Label;
     type Output = NwgControlNode;
 

@@ -1,5 +1,5 @@
 
-use std::{rc::{Rc, Weak}, cell::RefCell, ops::Deref};
+use std::{rc::Rc, cell::RefCell, ops::Deref};
 
 use native_windows_gui as nwg;
 

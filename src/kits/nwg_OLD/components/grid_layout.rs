@@ -2,7 +2,7 @@ use std::{rc::Rc, cell::RefCell, hash::Hash, collections::BTreeMap};
 
 use native_windows_gui as nwg;
 
-use crate::{component::{ComponentProps, Component}, kits::nwg::{NwgCtx, NwgWidget, NwgChildComponent}, functional_component::UiBuilder};
+use crate::{component::{ComponentProps, Component}, kits::nwg_old::{NwgCtx, NwgWidget, NwgChildComponent}, functional_component::UiBuilder};
 
 #[derive(Debug, Clone, PartialEq, Hash, PartialOrd, Eq, Ord)]
 pub struct ChildPlacement {

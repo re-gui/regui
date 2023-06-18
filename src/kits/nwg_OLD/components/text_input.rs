@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use native_windows_gui as nwg;
 
-use crate::{component::{ComponentProps, Component}, kits::nwg::{NwgCtx, NwgChildComponent, NwgWidget}, Callback};
+use crate::{component::{ComponentProps, Component}, kits::nwg_old::{NwgCtx, NwgChildComponent, NwgWidget}, Callback};
 
 use super::{NwgNativeCommonControl, NativeCommonComponent, NativeCommonComponentProperties};
 

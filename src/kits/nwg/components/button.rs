@@ -1,12 +1,9 @@
-use std::borrow::Cow;
+
+use std::{rc::Rc, cell::RefCell};
 
 use native_windows_gui as nwg;
 
-use crate::{Callback, component::{ComponentProps, Component}, kits::nwg::{NwgCtx, NwgWidget, NwgChildComponent}};
-
-use super::{NativeCommonComponent, NativeCommonComponentProperties, NwgNativeCommonControl};
-
-
+use crate::{kits::nwg::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent}, component::{Component, ComponentProps}};
 
 impl NwgNativeCommonControl for nwg::Button {
     fn handle(&self) -> &nwg::ControlHandle {
@@ -14,19 +11,14 @@ impl NwgNativeCommonControl for nwg::Button {
     }
 }
 
-pub struct ButtonComponent {
-    native: Option<(nwg::ControlHandle, NativeCommonComponent<nwg::Button>)>,
-    props: Button,
-}
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub struct Button {
     pub id: Option<i32>,
-    pub text: Cow<'static, str>,
+    pub text: String, // TODO cow
     pub position: Option<(i32, i32)>,
     pub size: Option<(u32, u32)>,
-    pub on_click: Callback<()>,
-    pub enabled: bool,
+    pub on_click: Rc<dyn Fn()>,
+    // TODO font etc.
 }
 
 impl Default for Button {
@@ -36,133 +28,92 @@ impl Default for Button {
             text: "".into(),
             position: None,
             size: None,
-            on_click: Callback::from(|_| {}),
-            enabled: true,
+            on_click: Rc::new(|| {}),
         }
     }
 }
 
-impl ComponentProps<NwgCtx> for Button {
+impl ComponentProps for Button {
     type AssociatedComponent = ButtonComponent;
 }
 
-impl Component<NwgCtx> for ButtonComponent {
-    type Props = Button;
-    fn build(_ctx: &NwgCtx, props: Self::Props) -> Self {
-        Self {
-            native: None,
-            props,
-        }
-    }
-
-    fn changed(&mut self, props: Self::Props, _ctx: &NwgCtx) {
-        if let Some((_, native)) = &mut self.native {
-            if props.text != self.props.text {
-                native.component.set_text(&props.text);
-            }
-            if props.position != self.props.position {
-                if let Some((x, y)) = props.position {
-                    native.component.set_position(x, y);
-                }
-            }
-            if props.size != self.props.size {
-                if let Some((width, height)) = props.size {
-                    native.component.set_size(width, height);
-                }
-            }
-            if props.enabled != self.props.enabled {
-                native.component.set_enabled(props.enabled);
-            }
-            if props.on_click != self.props.on_click {
-                // TODO written by copilot, to be checked
-                let on_click = props.on_click.clone();
-                native.change_handler(Some(move |event, _event_data, _handle| {
-                    if event == nwg::Event::OnButtonClick {
-                        on_click.call(());
-                    }
-                }));
-            }
-        }
-        self.props = props;
-    }
-
-    fn reuse_with(&self, props: &Self::Props) -> bool {
-        self.props.id == props.id
-    }
+pub struct ButtonComponent {
+    native: NativeCommonComponentComponent<nwg::Button>,
+    on_click_ref: Rc<RefCell<Rc<dyn Fn()>>>,
+    props: Button,
 }
 
-// TODO static IMG: &[u8] = include_bytes!("../../../../test.png");
+impl Component for ButtonComponent {
+    type Props = Button;
+    type Output = NwgControlNode;
 
-impl NwgChildComponent for ButtonComponent {
-    fn set_parent_handle(&mut self, parent_window: nwg::ControlHandle, ctx: &NwgCtx) {
-        if let Some((parent, _)) = &self.native {
-            if parent == &parent_window {
-                return;
-            }
-        }
+    fn build(props: Self::Props) -> (Self::Output, Self) {
+        let on_click_ref = Rc::new(RefCell::new(props.on_click.clone()));
+        let (node, native) = NativeCommonComponentComponent::build(NativeCommonComponent {
+            build: Rc::new({
+                let props = props.clone();
+                move |parent| {
+                    let mut label = Default::default();
+                    let mut builder = nwg::Button::builder()
+                        .text(&props.text)
+                        .parent(parent);
 
-        // TODO let bitmap2 = nwg::Icon::from_bin(IMG).unwrap();
+                        if let Some(position) = props.position {
+                            builder = builder.position(position);
+                        }
+    
+                        if let Some(size) = props.size {
+                            builder = builder.size((size.0 as i32, size.1 as i32));
+                        }
 
-        let text = self.props.text.clone().into_owned();
-        let props = self.props.clone();
-        let build = Callback::from(move |window_handle: nwg::ControlHandle| -> nwg::Button {
-            let mut button = Default::default();
-            let builder = nwg::Button::builder()
-                //.icon(Some(&bitmap2))
-                .text(&text)
-                .parent(&window_handle);
-
-            let builder = if let Some((x, y)) = props.position {
-                builder.position((x, y))
-            } else {
-                builder
-            };
-
-            let builder = if let Some((width, height)) = props.size {
-                builder.size((width as i32, height as i32))
-            } else {
-                builder
-            };
-
-            let builder = if props.enabled {
-                builder
-            } else {
-                builder.enabled(false)
-            };
-
-            builder
-                .build(&mut button)
-                .unwrap();
-            button
+                    builder
+                        .build(&mut label)
+                        .expect("Failed to build label");
+                    label
+                }
+            }),
+            on_event: Rc::new({
+                let on_click_ref = on_click_ref.borrow().clone();
+                move |event, _evt_data, _handle| {
+                    if let nwg::Event::OnButtonClick = event {
+                        on_click_ref();
+                    }
+                }
+            }),
         });
 
-        let on_click = self.props.on_click.clone();
-        let on_event = Some(Callback::from(move |(event, _event_data, _handle)| {
-            if event == nwg::Event::OnButtonClick {
-                on_click.call(());
+        (
+            node,
+            Self {
+                native,
+                on_click_ref,
+                props,
             }
-        }));
-
-        self.native = Some((
-            parent_window,
-            NativeCommonComponent::build(
-                ctx,
-                NativeCommonComponentProperties {
-                    parent_window,
-                    build,
-                    on_event,
-                },
-            ),
-        ));
+        )
     }
-}
+    fn changed(&mut self, props: Self::Props) -> Self::Output {
+        self.native.if_control(|label| {
+            if props.text != self.props.text {
+                label.set_text(&props.text);
+            }
 
-impl NwgWidget for ButtonComponent {
-    fn set_parent_and_get_handle(&mut self, parent_window: nwg::ControlHandle, ctx: &NwgCtx) -> &nwg::ControlHandle {
-        self.set_parent_handle(parent_window, ctx);
-        self.native.as_ref().unwrap().1.component.handle()
-    }
-    fn current_handle(&self) -> Option<&nwg::ControlHandle> {
-        self.native.as_ref().map(|(handle, _)| handle)
+            if props.position != self.props.position {
+                if let Some((x, y)) = props.position {
+                    label.set_position(x, y);
+                }
+            }
+
+            if props.size != self.props.size {
+                if let Some((w, h)) = props.size {
+                    label.set_size(w, h);
+                }
+            }
+
+            if !Rc::ptr_eq(&props.on_click, &self.props.on_click) {
+                *self.on_click_ref.borrow_mut() = props.on_click.clone();
+            }
+        });
+        self.props = props;
+        self.native.get_node()
     }
 }

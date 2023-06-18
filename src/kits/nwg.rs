@@ -1,139 +1,192 @@
+
 use std::{rc::{Rc, Weak}, cell::RefCell};
 
 use native_windows_gui as nwg;
 
-use crate::{context::Context, functional_component::UiBuilder, component::{ComponentProps, Component}};
+use crate::component::Component;
 
-use self::components::{WindowingStateProps, WindowingComponent};
+//use crate::Callback;
 
 pub mod components;
 
-struct ApplicationInner {
+/// A [`native_windows_gui`] [Common Control](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)
+pub trait NwgNativeCommonControl: 'static {
+    fn handle(&self) -> &nwg::ControlHandle;
 }
 
-impl ApplicationInner {
-    fn new() -> Self {
-        // TODO ...
-        nwg::init().expect("Failed to init Native Windows GUI");
-        nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
+pub struct NwgHandler(nwg::EventHandler);
 
-        Self {
-        }
-    }
-}
-
-impl Drop for ApplicationInner {
+impl Drop for NwgHandler {
     fn drop(&mut self) {
-        // TODO
+        nwg::unbind_event_handler(&self.0);
     }
 }
 
-pub struct Application {
-    inner: Rc<RefCell<ApplicationInner>>,
+pub struct NCCData<Control: NwgNativeCommonControl> {
+    handler: NwgHandler,
+    parent_handle: nwg::ControlHandle,
+    component: Control,
 }
 
-impl Application {
-    pub fn new() -> Self {
-        Self {
-            inner: Rc::new(RefCell::new(ApplicationInner::new())),
+pub struct NativeCommonComponent<Control: NwgNativeCommonControl> {
+    //parent_window: nwg::ControlHandle,
+    //build: Callback<dyn Fn(nwg::ControlHandle) -> Control>,
+    pub build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
+    //on_event: Option<Callback<dyn Fn(&nwg::Event, nwg::EventData, nwg::ControlHandle)>>,
+    pub on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle)>,
+}
+
+pub struct NativeCommonComponentComponent<Control: NwgNativeCommonControl> {
+    //data: Rc<RefCell<Option<NCCData<Control>>>>,
+    data: Rc<RefCell<Weak<NCCData<Control>>>>,
+    node: Option<NwgControlNode>,
+    props: NativeCommonComponent<Control>,
+}
+
+impl<Control: NwgNativeCommonControl> NativeCommonComponentComponent<Control> {
+    pub fn if_control<F: FnOnce(&Control)>(&self, f: F) {
+        if let Some(data) = self.data.borrow().upgrade() {
+            f(&data.component);
         }
     }
-    pub fn ctx(&self) -> NwgCtx {
-        NwgCtx {
-            app_inner: Rc::downgrade(&self.inner),
+    pub fn get_node(&mut self) -> NwgControlNode {
+        if let Some(node) = self.node.clone() {
+            node
+        } else {
+            let node = NwgControlNode(Rc::new(RefCell::new(NativeCommonComponentNode {
+                data: self.data.clone(),
+                on_event: self.props.on_event.clone(),
+                build: self.props.build.clone(),
+            })));
+            self.node = Some(node.clone());
+            node
         }
     }
+}
+
+impl<Control: NwgNativeCommonControl> Component for NativeCommonComponentComponent<Control> {
+    type Props = NativeCommonComponent<Control>;
+    type Output = NwgControlNode;
+    fn build(props: Self::Props) -> (Self::Output, Self) {
+        let mut component = Self {
+            data: Rc::new(RefCell::new(Weak::new())),
+            node: None,
+            props: props,
+        };
+
+        let node = component.get_node();
+
+        (node, component)
+    }
+    fn changed(&mut self, props: Self::Props) -> Self::Output {
+        // TODO check if props changed, especially on_event
+        self.props = props;
+        self.get_node()
+    }
+}
+
+pub struct NativeCommonComponentNode<Control: NwgNativeCommonControl> {
+    data: Rc<RefCell<Weak<NCCData<Control>>>>,
+    on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle)>, // TODO double Rc
+    build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
+}
+
+impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonComponentNode<Control> {
+    fn handle_from_parent<'parent>(&mut self, parent: &'parent nwg::ControlHandle) -> NwgControlHandleRef<'parent> {
+        let data = {
+            let data = self.data.borrow();
+            if let Some(current_data) = data.upgrade() {
+                if current_data.parent_handle == *parent {
+                    Some(current_data)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        let data = if let Some(data) = data {
+            data
+        } else {
+            let control = (self.build)(parent);
+
+            let handler = {
+                let on_event = self.on_event.clone();
+                let control_handle = control.handle().clone();
+                nwg::bind_event_handler(
+                    &control.handle(),
+                    parent,
+                    move |event, event_data, handle| {
+                        if handle == control_handle {
+                            (on_event)(&event, &event_data, &handle);
+                        }
+                    }
+                )
+            };
+
+            let data = NCCData {
+                parent_handle: parent.clone(),
+                component: control,
+                handler: NwgHandler(handler),
+            };
+
+            let data = Rc::new(data);
+            *self.data.borrow_mut() = Rc::downgrade(&data);
+            data
+        };
+
+        NwgControlHandleRef::new(parent, data)
+    }
+}
+
+impl<Control: NwgNativeCommonControl> NwgControlRefData for NCCData<Control> {
+    fn native(&self) -> &dyn NwgNativeCommonControl {
+        &self.component
+    }
+}
+
+trait NwgControlRefData {
+    fn native(&self) -> &dyn NwgNativeCommonControl;
 }
 
 #[derive(Clone)]
-pub struct NwgCtx {
-    app_inner: Weak<RefCell<ApplicationInner>>,
+pub struct NwgControlHandleRef<'parent> {
+    parent: &'parent nwg::ControlHandle,
+    //_phantom: std::marker::PhantomData<&'parent ()>,
+    data: Rc<dyn NwgControlRefData>,
 }
 
-//impl NwgCommonControl for nwg::Window {
-//    fn handle(&self) -> &nwg::ControlHandle {
-//        &self.handle
-//    }
-//}
-
-impl NwgCtx {
-    //pub fn window(&self) -> &nwg::Window {
-    //    &self.window
-    //}
-    pub fn dispatch(&self) {
-        nwg::dispatch_thread_events();
-    }
-    pub fn run_ui<UiProps: WindowingStateProps>(&self, props: UiProps) {
-        let _windowing = WindowingComponent::build(self, props);
-        self.dispatch();
-    }
-}
-
-impl Context for NwgCtx {
-}
-
-/// A component that is a child of a window, might not be a window itself.
-///
-/// It could be, for example, a list of widgets.
-pub trait NwgChildComponent {
-    fn set_parent_handle(&mut self, parent_window: nwg::ControlHandle, ctx: &NwgCtx);
-}
-
-impl NwgChildComponent for () {
-    fn set_parent_handle(&mut self, parent_window: nwg::ControlHandle, ctx: &NwgCtx) {
-    }
-}
-
-
-pub trait WrapIntoNwgChildComponent {
-    fn wrap(self) -> Rc<RefCell<dyn NwgChildComponent>>;
-}
-
-impl<T: NwgChildComponent + 'static> WrapIntoNwgChildComponent for T {
-    fn wrap(self) -> Rc<RefCell<dyn NwgChildComponent>> {
-        Rc::new(RefCell::new(self))
-    }
-}
-
-impl NwgChildComponent for Vec<Rc<RefCell<dyn NwgChildComponent>>> {
-    fn set_parent_handle(&mut self, parent_window: nwg::ControlHandle, ctx: &NwgCtx) {
-        for child in self {
-            child.borrow_mut().set_parent_handle(parent_window, ctx);
+impl<'parent> NwgControlHandleRef<'parent> {
+    fn new(parent: &'parent nwg::ControlHandle, data: Rc<dyn NwgControlRefData>) -> Self {
+        Self {
+            parent,
+            //_phantom: std::marker::PhantomData,
+            data,
         }
     }
-}
 
-pub struct ChildListBuilder<'builder>(&'builder UiBuilder<NwgCtx>, Vec<Rc<RefCell<dyn NwgChildComponent>>>);
+    pub fn parent_handle(&self) -> &'parent nwg::ControlHandle {
+        self.parent
+    }
 
-impl<'builder> ChildListBuilder<'builder> {
-    pub fn new(builder: &'builder UiBuilder<NwgCtx>) -> Self {
-        Self(builder, Vec::new())
-    }
-    pub fn build(self) -> Vec<Rc<RefCell<dyn NwgChildComponent>>> {
-        self.1
-    }
-    pub fn with<Props, Child: 'static>(mut self, props: Props) -> Self // TODO remove static
-    where
-        Props: ComponentProps<NwgCtx, AssociatedComponent = Child>,
-        Child: NwgChildComponent,
-    {
-        self.add(props);
-        self
-    }
-    pub fn add<Props, Child: 'static>(&mut self, props: Props) // TODO remove static
-    where
-        Props: ComponentProps<NwgCtx, AssociatedComponent = Child>,
-        Child: NwgChildComponent,
-    {
-        self.1.push(self.0.get(props));
+    pub fn handle(&self) -> &nwg::ControlHandle {
+        self.data.native().handle()
     }
 }
 
-/// Component that is also a window
-//pub trait NwgChildWindowComponent {
-pub trait NwgWidget: NwgChildComponent { // TODO consider removing NwgChildComponent requirement and provide default impl
-    fn set_parent_and_get_handle(&mut self, parent_window: nwg::ControlHandle, ctx: &NwgCtx) -> &nwg::ControlHandle;
-    fn current_handle(&self) -> Option<&nwg::ControlHandle>;
+pub trait NwgControlNodeTrait {
+    /// Given the parent, privides an object that "owns" the native control through a [`Rc`].
+    ///
+    /// The parent must outlive the returned object.
+    fn handle_from_parent<'parent>(&mut self, parent: &'parent nwg::ControlHandle) -> NwgControlHandleRef<'parent>;
 }
 
-//impl<T: NwgChildComponent + NwgControl> NwgChildWidget for T {}
+#[derive(Clone)]
+pub struct NwgControlNode(pub Rc<RefCell<dyn NwgControlNodeTrait>>);
+
+impl PartialEq for NwgControlNode {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}

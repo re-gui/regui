@@ -2,7 +2,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use native_windows_gui as nwg;
 
-use crate::{component::{Component, ComponentProps}, kits::nwg::{NwgCtx, NwgChildComponent}};
+use crate::{component::{Component, ComponentProps}, kits::nwg_old::{NwgCtx, NwgChildComponent}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WindowSettings {

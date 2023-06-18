@@ -1,6 +1,6 @@
 use std::{rc::{Rc, Weak}, any::Any, cell::RefCell};
 
-use crate::component::{ComponentProps, Component};
+use crate::component::{ComponentProps, Component, LiveValue};
 
 pub struct StateManagerInner<State> {
     state: Option<State>,
@@ -125,6 +125,15 @@ impl ComponentsCache {
                 components_pos: 0,
             }),
         }
+    }
+
+    pub fn get_live<Props: ComponentProps, T>(&self, props: Props) -> T
+    where
+        Props::AssociatedComponent: Component<Output = LiveValue<T>>,
+    {
+        let (value, emitter) = self.component::<Props::AssociatedComponent>(props).into_tuple();
+        
+        value
     }
 
     pub fn get<Props: ComponentProps>(&self, props: Props) -> <Props::AssociatedComponent as Component>::Output {

@@ -1,5 +1,5 @@
 
-use std::{rc::{Rc, Weak}, cell::RefCell};
+use std::{rc::{Rc, Weak}, cell::RefCell, ops::Deref};
 
 use native_windows_gui as nwg;
 
@@ -38,14 +38,14 @@ pub struct NativeCommonComponent<Control: NwgNativeCommonControl> {
 
 pub struct NativeCommonComponentComponent<Control: NwgNativeCommonControl> {
     //data: Rc<RefCell<Option<NCCData<Control>>>>,
-    data: Rc<RefCell<Weak<NCCData<Control>>>>,
+    data: Rc<RefCell<Option<Rc<NCCData<Control>>>>>,
     node: Option<NwgControlNode>,
     props: NativeCommonComponent<Control>,
 }
 
 impl<Control: NwgNativeCommonControl> NativeCommonComponentComponent<Control> {
     pub fn if_control<F: FnOnce(&Control)>(&self, f: F) {
-        if let Some(data) = self.data.borrow().upgrade() {
+        if let Some(data) = self.data.borrow().as_ref() {
             f(&data.component);
         }
     }
@@ -69,7 +69,7 @@ impl<Control: NwgNativeCommonControl> Component for NativeCommonComponentCompone
     type Output = NwgControlNode;
     fn build(props: Self::Props) -> (Self::Output, Self) {
         let mut component = Self {
-            data: Rc::new(RefCell::new(Weak::new())),
+            data: Rc::new(RefCell::new(None)),
             node: None,
             props: props,
         };
@@ -86,17 +86,17 @@ impl<Control: NwgNativeCommonControl> Component for NativeCommonComponentCompone
 }
 
 pub struct NativeCommonComponentNode<Control: NwgNativeCommonControl> {
-    data: Rc<RefCell<Weak<NCCData<Control>>>>,
+    data: Rc<RefCell<Option<Rc<NCCData<Control>>>>>,
     on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle)>, // TODO double Rc
     build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
 }
 
 impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonComponentNode<Control> {
-    fn handle_from_parent<'parent>(&mut self, parent: &'parent nwg::ControlHandle) -> NwgControlHandleRef<'parent> {
+    fn handle_from_parent(&mut self, parent_handle: &nwg::ControlHandle) -> nwg::ControlHandle {
         let data = {
             let data = self.data.borrow();
-            if let Some(current_data) = data.upgrade() {
-                if current_data.parent_handle == *parent {
+            if let Some(current_data) = data.clone() {
+                if current_data.parent_handle == *parent_handle {
                     Some(current_data)
                 } else {
                     None
@@ -107,16 +107,16 @@ impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonCompon
         };
 
         let data = if let Some(data) = data {
-            data
+            data.clone()
         } else {
-            let control = (self.build)(parent);
+            let control = (self.build)(parent_handle);
 
             let handler = {
                 let on_event = self.on_event.clone();
                 let control_handle = control.handle().clone();
                 nwg::bind_event_handler(
                     &control.handle(),
-                    parent,
+                    parent_handle,
                     move |event, event_data, handle| {
                         if handle == control_handle {
                             (on_event)(&event, &event_data, &handle);
@@ -126,17 +126,17 @@ impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonCompon
             };
 
             let data = NCCData {
-                parent_handle: parent.clone(),
+                parent_handle: parent_handle.clone(),
                 component: control,
                 handler: NwgHandler(handler),
             };
 
             let data = Rc::new(data);
-            *self.data.borrow_mut() = Rc::downgrade(&data);
+            *self.data.borrow_mut() = Some(data.clone());
             data
         };
 
-        NwgControlHandleRef::new(parent, data)
+        data.component.handle().clone()
     }
 }
 
@@ -147,39 +147,13 @@ impl<Control: NwgNativeCommonControl> NwgControlRefData for NCCData<Control> {
 }
 
 trait NwgControlRefData {
+    #[must_use]
     fn native(&self) -> &dyn NwgNativeCommonControl;
 }
 
-#[derive(Clone)]
-pub struct NwgControlHandleRef<'parent> {
-    parent: &'parent nwg::ControlHandle,
-    //_phantom: std::marker::PhantomData<&'parent ()>,
-    data: Rc<dyn NwgControlRefData>,
-}
-
-impl<'parent> NwgControlHandleRef<'parent> {
-    fn new(parent: &'parent nwg::ControlHandle, data: Rc<dyn NwgControlRefData>) -> Self {
-        Self {
-            parent,
-            //_phantom: std::marker::PhantomData,
-            data,
-        }
-    }
-
-    pub fn parent_handle(&self) -> &'parent nwg::ControlHandle {
-        self.parent
-    }
-
-    pub fn handle(&self) -> &nwg::ControlHandle {
-        self.data.native().handle()
-    }
-}
-
 pub trait NwgControlNodeTrait {
-    /// Given the parent, privides an object that "owns" the native control through a [`Rc`].
-    ///
-    /// The parent must outlive the returned object.
-    fn handle_from_parent<'parent>(&mut self, parent: &'parent nwg::ControlHandle) -> NwgControlHandleRef<'parent>;
+    #[must_use]
+    fn handle_from_parent(&mut self, parent_handle: &nwg::ControlHandle) -> nwg::ControlHandle;
 }
 
 #[derive(Clone)]
@@ -188,5 +162,12 @@ pub struct NwgControlNode(pub Rc<RefCell<dyn NwgControlNodeTrait>>);
 impl PartialEq for NwgControlNode {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Deref for NwgControlNode {
+    type Target = Rc<RefCell<dyn NwgControlNodeTrait>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

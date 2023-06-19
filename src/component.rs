@@ -1,10 +1,11 @@
-use std::{rc::{Rc, Weak}, any::Any, cell::RefCell};
+use std::{rc::{Rc, Weak}, any::Any, cell::RefCell, collections::VecDeque};
 
 use crate::state_function::{StateFunctionProps, StateFunction, LiveValue, LiveLink, LiveValueEmitter};
 
 pub struct StateManagerInner<State> {
     state: RefCell<State>,
     builder_fn: RefCell<Rc<dyn Fn(StateLink<State>)>>, // TODO maybe Rc is not needed
+    message_queue: RefCell<VecDeque<Box<dyn FnOnce(&mut State)>>>,
     to_rerun: RefCell<bool>,
     in_run: RefCell<bool>,
 }
@@ -22,6 +23,24 @@ impl<State> StateManagerInner<State> {
                 build(self_link.clone());
             }
             *self.in_run.borrow_mut() = false;
+        }
+    }
+
+    fn run_queue(&self, self_link: StateLink<State>) {
+        if self.message_queue.borrow().is_empty() {
+            return;
+        }
+
+        let runned = if let Ok(mut state) = self.state.try_borrow_mut() {
+            while let Some(message) = self.message_queue.borrow_mut().pop_front() {
+                message(&mut state);
+            }
+            true
+        } else {
+            false
+        };
+        if runned {
+            self.run(self_link);
         }
     }
 
@@ -46,6 +65,7 @@ impl<State: 'static> StateManager<State> {
             inner: Rc::new(StateManagerInner {
                 state: RefCell::new(state),
                 builder_fn: RefCell::new(Rc::new(|_| {})),
+                message_queue: RefCell::new(VecDeque::new()),
                 to_rerun: RefCell::new(false),
                 in_run: RefCell::new(false),
             }),
@@ -63,11 +83,15 @@ impl<State: 'static> StateManager<State> {
     }
 
     pub fn on_state<R>(&self, on_state: impl FnOnce(&State) -> R) -> R {
-        self.inner.on_state(on_state)
+        let r = self.inner.on_state(on_state);
+        self.inner.run_queue(self.link());
+        r
     }
 
     pub fn on_mut_state<R>(&self, on_state: impl FnOnce(&mut State) -> R) -> R {
-        self.inner.on_mut_state(on_state)
+        let r = self.inner.on_mut_state(on_state);
+        self.inner.run_queue(self.link());
+        r
     }
 }
 
@@ -85,13 +109,16 @@ impl<P> Clone for StateLink<P> {
 }
 
 impl<State> StateLink<State> {
-    pub fn update(&self, update: impl FnOnce(&mut State)) {
+    pub fn send_update(&self, update: impl FnOnce(&mut State) + 'static) {
         // TODO call self.set, instead of duplicating the code
         if let Some(manager) = self.state.upgrade() {
-            let _r = manager.on_mut_state(|state| {
-                update(state);
-            });
-            manager.run(self.clone());
+            //let _r = manager.on_mut_state(|state| {
+            //    update(state);
+            //});
+            //manager.run(self.clone());
+            manager.message_queue.borrow_mut().push_back(Box::new(update));
+            //manager.run(self.clone());
+            manager.run_queue(self.clone());
         }
         // if expired, no effect
     }
@@ -228,7 +255,7 @@ impl<SC: Component> StateFunction for LiveStateComponent<SC> {
         components_cache.borrow_mut().emitter().listen({
             let link = state_manager.link();
             move || {
-                link.update(|_| {});
+                link.send_update(|_| {});
             }
         });
 
@@ -278,7 +305,7 @@ impl<SC: Component> StateFunction for LiveStateComponent<SC> {
         // This will cause the view function to be called twice, which is not good.
         // Maybe just removing this call will be enough, since the the component's update will already call the link update function if needed,
         // but this should be analyzed more in depth.
-        self.state_manager.borrow().link().update(|_| {});
+        self.state_manager.borrow().link().send_update(|_| {});
 
         self.live_link.make_live_value(self.out.borrow().clone())
     }

@@ -27,7 +27,7 @@ pub struct NCCData<Control: NwgNativeCommonControl> {
     // handler cannot be dropped after the control is dropped. `unbind_event_handler` panics if the control is dropped.
     _handler: NwgHandler,
     parent_handle: nwg::ControlHandle,
-    component: Control,
+    component: Rc<Control>,
 }
 
 pub struct NativeCommonComponent<Control: NwgNativeCommonControl> {
@@ -35,7 +35,7 @@ pub struct NativeCommonComponent<Control: NwgNativeCommonControl> {
     //build: Callback<dyn Fn(nwg::ControlHandle) -> Control>,
     pub build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
     //on_event: Option<Callback<dyn Fn(&nwg::Event, nwg::EventData, nwg::ControlHandle)>>,
-    pub on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle)>,
+    pub on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>,
 }
 
 pub struct NativeCommonComponentComponent<Control: NwgNativeCommonControl> {
@@ -89,7 +89,7 @@ impl<Control: NwgNativeCommonControl> StateFunction for NativeCommonComponentCom
 
 pub struct NativeCommonComponentNode<Control: NwgNativeCommonControl> {
     data: Rc<RefCell<Option<Rc<NCCData<Control>>>>>,
-    on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle)>, // TODO double Rc
+    on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>, // TODO double Rc
     build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
 }
 
@@ -111,17 +111,20 @@ impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonCompon
         let data = if let Some(data) = data {
             data.clone()
         } else {
-            let control = (self.build)(parent_handle);
+            let control = Rc::new((self.build)(parent_handle));
 
             let handler = {
                 let on_event = self.on_event.clone();
                 let control_handle = control.handle().clone();
+                let control_weak = Rc::downgrade(&control);
                 nwg::bind_event_handler(
                     &control.handle(),
                     parent_handle,
                     move |event, event_data, handle| {
                         if handle == control_handle {
-                            (on_event)(&event, &event_data, &handle);
+                            if let Some(control) = control_weak.upgrade() {
+                                (on_event)(&event, &event_data, &handle, &control);
+                            }
                         }
                     }
                 )
@@ -144,7 +147,7 @@ impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonCompon
 
 impl<Control: NwgNativeCommonControl> NwgControlRefData for NCCData<Control> {
     fn native(&self) -> &dyn NwgNativeCommonControl {
-        &self.component
+        self.component.as_ref()
     }
 }
 

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use native_windows_gui as nwg;
 use regui::{component::{LiveStateComponent, Component, StateLink, FunctionsCache}, StateFunctionProps, StateFunction};
-use regui_nwg::{NwgControlNode, components::{Button, Label}};
+use regui_nwg::{NwgControlNode, components::{Button, Label, TextInput}};
 
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
@@ -84,7 +84,8 @@ impl Component for MyCompState {
                 on_click: Rc::new({
                     let link = link.clone();
                     move || {
-                        link.update(|state| {
+                        link.send_update(|state| {
+                            println!("push");
                             state.text.push_str("a");
                         });
                     }
@@ -97,8 +98,26 @@ impl Component for MyCompState {
                 on_click: Rc::new({
                     let link = link.clone();
                     move || {
-                        link.update(|state| {
+                        link.send_update(|state| {
+                            println!("pop");
                             state.text.pop();
+                        });
+                    }
+                }),
+                ..Default::default()
+            }),
+            cache.eval(TextInput {
+                text: self.text.clone(),
+                position: Some((200, 0)),
+                on_input: Rc::new({
+                    let link = link.clone();
+                    move |text| {
+                        link.send_update({
+                            let text = text.to_string();
+                            move |state| {
+                                println!("input");
+                                state.text = text;
+                            }
                         });
                     }
                 }),
@@ -113,7 +132,7 @@ impl Component for MyCompState {
                 text: "CLOSE".into(),
                 position: Some((10 * self.text.len() as i32 - 40, 50)),
                 on_click: Rc::new(move || {
-                    link.update(|_| {
+                    link.send_update(|_| {
                         nwg::stop_thread_dispatch();
                     });
                 }),

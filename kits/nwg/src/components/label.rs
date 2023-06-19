@@ -69,7 +69,7 @@ impl StateFunction for LabelComponent {
                     label
                 }
             }),
-            on_event: Rc::new(|_event, _evt_data, _handle| {}),
+            on_event: Rc::new(|_event, _evt_data, _handle, _control| {}),
         });
 
         (

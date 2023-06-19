@@ -4,10 +4,10 @@ use std::rc::Rc;
 use native_windows_gui as nwg;
 use regui::{StateFunctionProps, StateFunction};
 
-use crate::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
+use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
-impl NwgNativeCommonControl for nwg::Label {
-    fn handle(&self) -> &nwg::ControlHandle {
+impl WithNwgControlHandle for nwg::Label {
+    fn nwg_control_handle(&self) -> &nwg::ControlHandle {
         &self.handle
     }
 }

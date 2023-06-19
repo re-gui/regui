@@ -10,27 +10,27 @@ use regui::StateFunction;
 pub mod components;
 
 /// A [`native_windows_gui`] [Common Control](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)
-pub trait NwgNativeCommonControl: 'static {
-    fn handle(&self) -> &nwg::ControlHandle;
+pub trait WithNwgControlHandle: 'static {
+    fn nwg_control_handle(&self) -> &nwg::ControlHandle;
 }
 
-pub struct NwgHandler(nwg::EventHandler);
-
-impl Drop for NwgHandler {
-    fn drop(&mut self) {
-        nwg::unbind_event_handler(&self.0);
-    }
-}
-
-pub struct NCCData<Control: NwgNativeCommonControl> {
-    // NOTE: the handler has to be the first member, because it is dropped first.
-    // handler cannot be dropped after the control is dropped. `unbind_event_handler` panics if the control is dropped.
-    _handler: NwgHandler,
+pub struct NCCData<Control: WithNwgControlHandle> {
     parent_handle: nwg::ControlHandle,
+    handler: nwg::EventHandler,
     component: Rc<Control>,
 }
 
-pub struct NativeCommonComponent<Control: NwgNativeCommonControl> {
+impl<Control: WithNwgControlHandle> Drop for NCCData<Control> {
+    fn drop(&mut self) {
+        // TODO remove from parent??
+
+        // NOTE: the handler has to be the first member, because it is dropped first.
+        // handler cannot be dropped after the control is dropped. `unbind_event_handler` panics if the control is dropped.
+        nwg::unbind_event_handler(&self.handler);
+    }
+}
+
+pub struct NativeCommonComponent<Control: WithNwgControlHandle> {
     //parent_window: nwg::ControlHandle,
     //build: Callback<dyn Fn(nwg::ControlHandle) -> Control>,
     pub build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
@@ -38,14 +38,14 @@ pub struct NativeCommonComponent<Control: NwgNativeCommonControl> {
     pub on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>,
 }
 
-pub struct NativeCommonComponentComponent<Control: NwgNativeCommonControl> {
+pub struct NativeCommonComponentComponent<Control: WithNwgControlHandle> {
     //data: Rc<RefCell<Option<NCCData<Control>>>>,
     data: Rc<RefCell<Option<Rc<NCCData<Control>>>>>,
     node: Option<NwgControlNode>,
     props: NativeCommonComponent<Control>,
 }
 
-impl<Control: NwgNativeCommonControl> NativeCommonComponentComponent<Control> {
+impl<Control: WithNwgControlHandle> NativeCommonComponentComponent<Control> {
     pub fn if_control<F: FnOnce(&Control)>(&self, f: F) {
         if let Some(data) = self.data.borrow().as_ref() {
             f(&data.component);
@@ -66,7 +66,7 @@ impl<Control: NwgNativeCommonControl> NativeCommonComponentComponent<Control> {
     }
 }
 
-impl<Control: NwgNativeCommonControl> StateFunction for NativeCommonComponentComponent<Control> {
+impl<Control: WithNwgControlHandle> StateFunction for NativeCommonComponentComponent<Control> {
     type Input = NativeCommonComponent<Control>;
     type Output = NwgControlNode;
     fn build(props: Self::Input) -> (Self::Output, Self) {
@@ -87,13 +87,13 @@ impl<Control: NwgNativeCommonControl> StateFunction for NativeCommonComponentCom
     }
 }
 
-pub struct NativeCommonComponentNode<Control: NwgNativeCommonControl> {
+pub struct NativeCommonComponentNode<Control: WithNwgControlHandle> {
     data: Rc<RefCell<Option<Rc<NCCData<Control>>>>>,
     on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>, // TODO double Rc
     build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
 }
 
-impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonComponentNode<Control> {
+impl<Control: WithNwgControlHandle> NwgControlNodeTrait for NativeCommonComponentNode<Control> {
     fn handle_from_parent(&mut self, parent_handle: &nwg::ControlHandle) -> nwg::ControlHandle {
         let data = {
             let data = self.data.borrow();
@@ -115,10 +115,10 @@ impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonCompon
 
             let handler = {
                 let on_event = self.on_event.clone();
-                let control_handle = control.handle().clone();
+                let control_handle = control.nwg_control_handle().clone();
                 let control_weak = Rc::downgrade(&control);
                 nwg::bind_event_handler(
-                    &control.handle(),
+                    &control.nwg_control_handle(),
                     parent_handle,
                     move |event, event_data, handle| {
                         if handle == control_handle {
@@ -133,7 +133,7 @@ impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonCompon
             let data = NCCData {
                 parent_handle: parent_handle.clone(),
                 component: control,
-                _handler: NwgHandler(handler),
+                handler,
             };
 
             let data = Rc::new(data);
@@ -141,19 +141,19 @@ impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonCompon
             data
         };
 
-        data.component.handle().clone()
+        data.component.nwg_control_handle().clone()
     }
 }
 
-impl<Control: NwgNativeCommonControl> NwgControlRefData for NCCData<Control> {
-    fn native(&self) -> &dyn NwgNativeCommonControl {
+impl<Control: WithNwgControlHandle> NwgControlRefData for NCCData<Control> {
+    fn native(&self) -> &dyn WithNwgControlHandle {
         self.component.as_ref()
     }
 }
 
 trait NwgControlRefData {
     #[must_use]
-    fn native(&self) -> &dyn NwgNativeCommonControl;
+    fn native(&self) -> &dyn WithNwgControlHandle;
 }
 
 pub trait NwgControlNodeTrait {

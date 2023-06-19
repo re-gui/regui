@@ -4,7 +4,8 @@ use crate::state_function::{StateFunctionProps, StateFunction, LiveValue, LiveLi
 
 pub struct StateManagerInner<State> {
     state: RefCell<State>,
-    builder_fn: RefCell<Rc<dyn Fn(StateLink<State>)>>, // TODO maybe Rc is not needed
+    //builder_fn: RefCell<Option<Rc<dyn Fn(&State, StateLink<State>)>>>, // TODO maybe Rc is not needed
+    builder_fn: RefCell<Rc<dyn Fn(&State, StateLink<State>)>>, // TODO maybe Rc is not needed
     message_queue: RefCell<VecDeque<Box<dyn FnOnce(&mut State)>>>,
     to_rerun: RefCell<bool>,
     in_run: RefCell<bool>,
@@ -20,10 +21,20 @@ impl<State> StateManagerInner<State> {
             while *self.to_rerun.borrow() {
                 *self.to_rerun.borrow_mut() = false;
                 let build = self.builder_fn.borrow().clone();
-                build(self_link.clone());
+                //if let Some(build) = build {
+                    build(&self.state.borrow(), self_link.clone());
+                //}
             }
             *self.in_run.borrow_mut() = false;
         }
+    }
+
+    fn push_on_queue(&self, message: impl FnOnce(&mut State) + 'static) {
+        const MAX_QUEUE_SIZE: usize = 1000;
+        if self.message_queue.borrow().len() > MAX_QUEUE_SIZE {
+            panic!("Message queue is too big, maybe you have infinite update loop?");
+        }
+        self.message_queue.borrow_mut().push_back(Box::new(message));
     }
 
     fn run_queue(&self, self_link: StateLink<State>) {
@@ -32,7 +43,8 @@ impl<State> StateManagerInner<State> {
         }
 
         let runned = if let Ok(mut state) = self.state.try_borrow_mut() {
-            while let Some(message) = self.message_queue.borrow_mut().pop_front() {
+            let pick = || self.message_queue.borrow_mut().pop_front();
+            while let Some(message) = pick() {
                 message(&mut state);
             }
             true
@@ -64,7 +76,8 @@ impl<State: 'static> StateManager<State> {
         Self {
             inner: Rc::new(StateManagerInner {
                 state: RefCell::new(state),
-                builder_fn: RefCell::new(Rc::new(|_| {})),
+                //builder_fn: RefCell::new(None),
+                builder_fn: RefCell::new(Rc::new(|_, _| {})),
                 message_queue: RefCell::new(VecDeque::new()),
                 to_rerun: RefCell::new(false),
                 in_run: RefCell::new(false),
@@ -72,8 +85,9 @@ impl<State: 'static> StateManager<State> {
         }
     }
 
-    pub fn set_builder(&self, builder: impl Fn(StateLink<State>) + 'static) {
+    pub fn set_builder(&self, builder: impl Fn(&State, StateLink<State>) + 'static) {
         *self.inner.builder_fn.borrow_mut() = Rc::new(builder);
+        self.inner.run(self.link());
     }
 
     pub fn link(&self) -> StateLink<State> {
@@ -113,7 +127,7 @@ impl<State> StateLink<State> {
     pub fn send_update(&self, update: impl FnOnce(&mut State) + 'static) {
         // TODO call self.set, instead of duplicating the code
         if let Some(manager) = self.state.upgrade() {
-            manager.message_queue.borrow_mut().push_back(Box::new(update));
+            manager.push_on_queue(update);
             manager.run_queue(self.clone());
         }
         // if expired, no effect
@@ -150,6 +164,7 @@ pub struct FunctionsCache {
 }
 
 impl FunctionsCache {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: RefCell::new(FunctionsCacheData {
@@ -161,6 +176,7 @@ impl FunctionsCache {
     }
 
     // TODO ???
+    #[must_use]
     pub fn emitter(&self) -> LiveValueEmitter {
         let (_, emitter) = self.live_link.borrow_mut().make_live_value(()).into_tuple();
         emitter
@@ -170,6 +186,7 @@ impl FunctionsCache {
     ///
     /// This function will call [`eval`](FunctionsCache::eval) and unwrap the result.
     /// The live value emitter will be consumed: the value changes can be listened using [`emitter`](FunctionsCache::emitter).
+    #[must_use]
     pub fn live<Props: StateFunctionProps, T>(&self, props: Props) -> T
     where
         Props::AssociatedFunction: StateFunction<Output = LiveValue<T>>,
@@ -178,12 +195,14 @@ impl FunctionsCache {
     }
 
     /// Evaluates a state function from the components.
+    #[must_use]
     pub fn eval<Props: StateFunctionProps>(&self, props: Props) -> <Props::AssociatedFunction as StateFunction>::Output {
         self.eval_state_function::<Props::AssociatedFunction>(props)
     }
 
     // TODO get_if_new and get_if_changed
 
+    #[must_use]
     pub fn eval_live_state_function<SF, T>(&self, props: SF::Input) -> T
     where
         SF: StateFunction<Output = LiveValue<T>>,
@@ -198,6 +217,7 @@ impl FunctionsCache {
         value
     }
 
+    #[must_use]
     pub fn eval_state_function<SF: StateFunction>(&self, props: SF::Input) -> SF::Output {
         let mut data = self.data.borrow_mut();
         let pos = data.functions_pos;
@@ -245,8 +265,8 @@ pub trait Component: Sized + 'static { // TODO remove 'static
     type Out: PartialEq + Clone + 'static;
     type Message;
     #[must_use]
-    fn build(props: Self::Props) -> Self;
-    fn update(&mut self, props: Self::Props);
+    fn build(props: Self::Props) -> Self; // TODO maybe link avaliable here
+    fn update(&mut self, _props: Self::Props) {} // TODO maybe link avaliable here
 
     /// Called when a message is sent to the component.
     ///
@@ -254,14 +274,14 @@ pub trait Component: Sized + 'static { // TODO remove 'static
     /// you could use [`StateLink::send_update`] instead.
     ///
     /// [`StateLink::send_update`]: StateLink::send_update
-    fn on_message(&mut self, message: Self::Message);
+    fn on_message(&mut self, _message: Self::Message) {} // TODO maybe link avaliable here
     #[must_use]
     fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out;
 }
 
 pub struct LiveStateComponent<SC: Component> {
     state_manager: Rc<RefCell<StateManager<SC>>>,
-    //components_cache: Rc<RefCell<FunctionsCache>>,
+    components_cache: Rc<RefCell<FunctionsCache>>,
     out: Rc<RefCell<SC::Out>>,
     live_link: LiveLink,
 }
@@ -296,18 +316,24 @@ impl<SC: Component> StateFunction for LiveStateComponent<SC> {
         let state_manager = Rc::new(RefCell::new(state_manager));
 
         state_manager.borrow_mut().set_builder({
-            let cache = components_cache.clone();
-            let out = out.clone();
+            let cache = Rc::downgrade(&components_cache);
+            let out = Rc::downgrade(&out);
             let live_link = live_link.clone();
-            let state_manager = state_manager.clone();
-            move |link| {
+            //let state_manager = state_manager.clone();
+            move |component, link| {
+                let cache = match cache.upgrade() {
+                    Some(cache) => cache,
+                    None => return,
+                };
                 let mut cache = cache.borrow_mut();
                 let new_result = {
-                    let result = state_manager.borrow().on_state(|component| {
-                        component.view(link.clone(), &cache)
-                    });
+                    let result = component.view(link.clone(), &cache);
                     cache.finish();
                     result
+                };
+                let out = match out.upgrade() {
+                    Some(out) => out,
+                    None => return,
                 };
                 if new_result != *out.borrow() {
                     // set new result
@@ -322,14 +348,18 @@ impl<SC: Component> StateFunction for LiveStateComponent<SC> {
             live_link.make_live_value(result),
             Self {
                 state_manager,
-                //components_cache,
+                components_cache,
                 out,
                 live_link,
             }
         )
     }
     fn changed(&mut self, props: Self::Input) -> Self::Output {
-        self.state_manager.borrow().on_mut_state(|component| {
+        //self.state_manager.borrow().on_mut_state(|component| {
+        //    component.update(props);
+        //});
+        let link = self.state_manager.borrow().link();
+        link.send_update(|component| {
             component.update(props);
         });
 

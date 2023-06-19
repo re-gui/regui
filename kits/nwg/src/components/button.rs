@@ -4,10 +4,10 @@ use std::{rc::Rc, cell::RefCell};
 use native_windows_gui as nwg;
 use regui::{StateFunctionProps, StateFunction};
 
-use crate::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
+use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
-impl NwgNativeCommonControl for nwg::Button {
-    fn handle(&self) -> &nwg::ControlHandle {
+impl WithNwgControlHandle for nwg::Button {
+    fn nwg_control_handle(&self) -> &nwg::ControlHandle {
         &self.handle
     }
 }
@@ -18,6 +18,7 @@ pub struct Button {
     pub text: String, // TODO cow
     pub position: Option<(i32, i32)>,
     pub size: Option<(u32, u32)>,
+    pub enabled: bool,
     pub on_click: Rc<dyn Fn()>,
     // TODO font etc.
 }
@@ -29,6 +30,7 @@ impl Default for Button {
             text: "".into(),
             position: None,
             size: None,
+            enabled: true,
             on_click: Rc::new(|| {}),
         }
     }
@@ -66,6 +68,8 @@ impl StateFunction for ButtonFunction {
                         if let Some(size) = props.size {
                             builder = builder.size((size.0 as i32, size.1 as i32));
                         }
+
+                        builder = builder.enabled(props.enabled);
 
                     builder
                         .build(&mut label)
@@ -108,6 +112,10 @@ impl StateFunction for ButtonFunction {
                 if let Some((w, h)) = props.size {
                     label.set_size(w, h);
                 }
+            }
+
+            if props.enabled != self.props.enabled {
+                label.set_enabled(props.enabled);
             }
 
             if !Rc::ptr_eq(&props.on_click, &self.props.on_click) {

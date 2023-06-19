@@ -4,10 +4,10 @@ use std::{rc::Rc, cell::RefCell};
 use native_windows_gui as nwg;
 use regui::{StateFunctionProps, StateFunction};
 
-use crate::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
+use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
-impl NwgNativeCommonControl for nwg::TextInput {
-    fn handle(&self) -> &nwg::ControlHandle {
+impl WithNwgControlHandle for nwg::TextInput {
+    fn nwg_control_handle(&self) -> &nwg::ControlHandle {
         &self.handle
     }
 }

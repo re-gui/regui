@@ -18,6 +18,7 @@ pub struct TextInput {
     pub text: String, // TODO cow
     pub position: Option<(i32, i32)>,
     pub size: Option<(u32, u32)>,
+    pub enabled: bool,
     pub on_input: Rc<dyn Fn(&str)>,
     pub on_user_input: Rc<dyn Fn(&str)>,
     // TODO on_user_input that ignores programmatic input
@@ -31,6 +32,7 @@ impl Default for TextInput {
             text: "".into(),
             position: None,
             size: None,
+            enabled: true,
             on_input: Rc::new(|_| {}),
             on_user_input: Rc::new(|_| {}),
         }
@@ -77,6 +79,9 @@ impl StateFunction for TextInputFunction {
                     builder
                         .build(&mut label)
                         .expect("Failed to build label");
+
+                    label.set_enabled(props.enabled);
+
                     label
                 }
             }),
@@ -137,6 +142,10 @@ impl StateFunction for TextInputFunction {
                 if let Some((w, h)) = props.size {
                     label.set_size(w, h);
                 }
+            }
+
+            if props.enabled != self.props.enabled {
+                label.set_enabled(props.enabled);
             }
 
             if !Rc::ptr_eq(&props.on_input, &self.props.on_input) {

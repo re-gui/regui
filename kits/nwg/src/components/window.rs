@@ -1,5 +1,5 @@
 
-use std::{rc::Rc, cell::RefCell};
+use std::{rc::Rc, cell::RefCell, ops::Deref};
 
 use native_windows_gui as nwg;
 use regui::{StateFunction, StateFunctionProps};
@@ -33,6 +33,8 @@ pub struct Window {
     pub position: Option<(i32, i32)>,
     pub initial_size: Option<(u32, u32)>,
     pub size: Option<(u32, u32)>,
+    pub icon: Option<Rc<nwg::Icon>>,
+    pub enabled: bool,
     pub content: WindowContent,
     pub on_close_request: Rc<dyn Fn()>,
     pub on_maximize: Rc<dyn Fn()>,
@@ -55,6 +57,8 @@ impl Default for Window {
             position: None,
             initial_size: None,
             size: None,
+            icon: None,
+            enabled: true,
             content: WindowContent::None,
             on_close_request: Rc::new(|| {}),
             on_maximize: Rc::new(|| {}),
@@ -142,9 +146,13 @@ impl StateFunction for WindowFunction {
             builder = builder.size((x as i32, y as i32));
         }
 
+        builder = builder.icon(input.icon.as_ref().map(|icon| icon.deref()));
+
         builder
             .build(&mut window)
             .unwrap();
+
+        window.set_enabled(input.enabled);
 
         //let on_close_request_ref = Rc::new(RefCell::new(input.on_close_request.clone()));
         //let on_close_maximize_ref = Rc::new(RefCell::new(input.on_close_maximize.clone()));
@@ -259,6 +267,14 @@ impl StateFunction for WindowFunction {
 
         if !Rc::ptr_eq(&input.on_resized, &self.props().on_resized) {
             self.callbacks.borrow_mut().on_resized = input.on_resized.clone();
+        }
+
+        if input.icon != self.props().icon {
+            self.native.set_icon(input.icon.as_ref().map(|icon| icon.deref()));
+        }
+
+        if input.enabled != self.props().enabled {
+            self.native.set_enabled(input.enabled);
         }
 
         self.props = Some(input);

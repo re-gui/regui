@@ -23,6 +23,7 @@ impl StateFunctionProps for MyUi {
 
 struct MyUiState {
     title: String,
+    icon: Rc<nwg::Icon>,
 }
 
 impl Component for MyUiState {
@@ -31,7 +32,12 @@ impl Component for MyUiState {
     type Message = String;
 
     fn build(_props: Self::Props) -> Self {
-        Self { title: "title".into() }
+        const LOGO_PNG: &[u8] = include_bytes!("../../../logo.png");
+        let icon = nwg::Icon::from_bin(LOGO_PNG).expect("Failed to load icon");
+        Self {
+            title: "title".into(),
+            icon: Rc::new(icon)
+        }
     }
 
     fn on_message(&mut self, message: Self::Message) {
@@ -50,6 +56,7 @@ impl Component for MyUiState {
                 change_text: Rc::new(set_title),
             }).into(),
             on_close_request: Rc::new(|| nwg::stop_thread_dispatch()),
+            icon: if self.title.len() % 2 == 0 { Some(self.icon.clone()) } else { None },
             ..Default::default()
         });
     }

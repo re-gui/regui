@@ -66,6 +66,7 @@ impl StateFunction for LabelFunction {
                     builder
                         .build(&mut label)
                         .expect("Failed to build label");
+
                     label
                 }
             }),

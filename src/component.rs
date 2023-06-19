@@ -21,9 +21,7 @@ impl<State> StateManagerInner<State> {
             while *self.to_rerun.borrow() {
                 *self.to_rerun.borrow_mut() = false;
                 let build = self.builder_fn.borrow().clone();
-                //if let Some(build) = build {
-                    build(&self.state.borrow(), self_link.clone());
-                //}
+                build(&self.state.borrow(), self_link.clone());
             }
             *self.in_run.borrow_mut() = false;
         }

@@ -45,6 +45,15 @@ pub struct Window {
     // TODO status bar icon
     // TODO status bar progress and notifications
     // TODO menu
+    // TODO movable
+    // TODO resizable
+    // TODO borderless
+    // TODO without title bar
+    // TODO without button
+    // TODO transparent
+    // TODO topmost
+    // TODO always on top
+    // TODO always on bottom
 }
 
 impl Default for Window {

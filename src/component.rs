@@ -109,21 +109,34 @@ impl<P> Clone for StateLink<P> {
 }
 
 impl<State> StateLink<State> {
+    /// Sends an update to the state.
     pub fn send_update(&self, update: impl FnOnce(&mut State) + 'static) {
         // TODO call self.set, instead of duplicating the code
         if let Some(manager) = self.state.upgrade() {
-            //let _r = manager.on_mut_state(|state| {
-            //    update(state);
-            //});
-            //manager.run(self.clone());
             manager.message_queue.borrow_mut().push_back(Box::new(update));
-            //manager.run(self.clone());
             manager.run_queue(self.clone());
         }
         // if expired, no effect
     }
 
     // TODO update_eq
+}
+
+impl<State> StateLink<State>
+where
+    State: Component,
+{
+    /// Sends a message to the state.
+    ///
+    /// The behaviour of this function is the same as [`send_update`](StateLink::send_update), but it is more semantic.
+    ///
+    /// # Notes
+    /// See the source of this function for more details.
+    pub fn send_message(&self, message: State::Message) {
+        self.send_update(|state| {
+            state.on_message(message);
+        });
+    }
 }
 
 pub struct FunctionsCacheData {
@@ -153,11 +166,29 @@ impl FunctionsCache {
         emitter
     }
 
-    pub fn eval_live<Props: StateFunctionProps, T>(&self, props: Props) -> T
+    /// Same as [`eval`](FunctionsCache::eval) but unwraps the live value.
+    ///
+    /// This function will call [`eval`](FunctionsCache::eval) and unwrap the result.
+    /// The live value emitter will be consumed: the value changes can be listened using [`emitter`](FunctionsCache::emitter).
+    pub fn live<Props: StateFunctionProps, T>(&self, props: Props) -> T
     where
-        Props::AssociatedComponent: StateFunction<Output = LiveValue<T>>,
+        Props::AssociatedFunction: StateFunction<Output = LiveValue<T>>,
     {
-        let (value, emitter) = self.eval_state_function::<Props::AssociatedComponent>(props).into_tuple();
+        self.eval_live_state_function::<Props::AssociatedFunction, T>(props)
+    }
+
+    /// Evaluates a state function from the components.
+    pub fn eval<Props: StateFunctionProps>(&self, props: Props) -> <Props::AssociatedFunction as StateFunction>::Output {
+        self.eval_state_function::<Props::AssociatedFunction>(props)
+    }
+
+    // TODO get_if_new and get_if_changed
+
+    pub fn eval_live_state_function<SF, T>(&self, props: SF::Input) -> T
+    where
+        SF: StateFunction<Output = LiveValue<T>>,
+    {
+        let (value, emitter) = self.eval_state_function::<SF>(props).into_tuple();
         emitter.listen({
             let live_link = self.live_link.clone();
             move || {
@@ -166,12 +197,6 @@ impl FunctionsCache {
         });
         value
     }
-
-    pub fn eval<Props: StateFunctionProps>(&self, props: Props) -> <Props::AssociatedComponent as StateFunction>::Output {
-        self.eval_state_function::<Props::AssociatedComponent>(props)
-    }
-
-    // TODO get_if_new and get_if_changed
 
     pub fn eval_state_function<SF: StateFunction>(&self, props: SF::Input) -> SF::Output {
         let mut data = self.data.borrow_mut();
@@ -218,9 +243,18 @@ impl FunctionsCache {
 pub trait Component: Sized + 'static { // TODO remove 'static
     type Props;
     type Out: PartialEq + Clone + 'static;
+    type Message;
     #[must_use]
     fn build(props: Self::Props) -> Self;
     fn update(&mut self, props: Self::Props);
+
+    /// Called when a message is sent to the component.
+    ///
+    /// Note that it is not necessary to use this method to update the component state:
+    /// you could use [`StateLink::send_update`] instead.
+    ///
+    /// [`StateLink::send_update`]: StateLink::send_update
+    fn on_message(&mut self, message: Self::Message);
     #[must_use]
     fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out;
 }

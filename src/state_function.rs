@@ -121,30 +121,15 @@ impl LiveLink {
 }
 
 
-pub trait AsLiveValue<T> {
-    fn into_live_value(self) -> LiveValue<T>;
-}
 
-impl<T> AsLiveValue<T> for T {
-    fn into_live_value(self) -> LiveValue<T> {
-        LiveValue {
-            value: self,
-            emitter: LiveValueEmitter {
-                inner: Rc::new(RefCell::new(LiveInner {
-                    listener: None,
-                })),
-            },
-        }
-    }
-}
 
 /// Declares a univoque relationship <code>[StatefulFunction::Props] -> [StatefulFunction]</code>.
 ///
 /// When a type implements this trait, it means that it has a corresponding [`StatefulFunction`] that can be built from its props.
 pub trait StateFunctionProps: Sized {
-    type AssociatedComponent: StateFunction<Input = Self>;
-    fn build(self) -> (<Self::AssociatedComponent as StateFunction>::Output, Self::AssociatedComponent) {
-        Self::AssociatedComponent::build(self)
+    type AssociatedFunction: StateFunction<Input = Self>;
+    fn build(self) -> (<Self::AssociatedFunction as StateFunction>::Output, Self::AssociatedFunction) {
+        Self::AssociatedFunction::build(self)
     }
 }
 

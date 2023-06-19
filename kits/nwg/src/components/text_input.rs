@@ -19,6 +19,7 @@ pub struct TextInput {
     pub position: Option<(i32, i32)>,
     pub size: Option<(u32, u32)>,
     pub on_input: Rc<dyn Fn(&str)>,
+    pub on_user_input: Rc<dyn Fn(&str)>,
     // TODO on_user_input that ignores programmatic input
     // TODO font etc.
 }
@@ -31,26 +32,31 @@ impl Default for TextInput {
             position: None,
             size: None,
             on_input: Rc::new(|_| {}),
+            on_user_input: Rc::new(|_| {}),
         }
     }
 }
 
 impl StateFunctionProps for TextInput {
-    type AssociatedComponent = TextInputComponent;
+    type AssociatedFunction = TextInputFunction;
 }
 
-pub struct TextInputComponent {
+pub struct TextInputFunction {
     native: NativeCommonComponentComponent<nwg::TextInput>,
-    on_click_ref: Rc<RefCell<Rc<dyn Fn(&str)>>>,
+    on_input_ref: Rc<RefCell<Rc<dyn Fn(&str)>>>,
+    on_user_input_ref: Rc<RefCell<Rc<dyn Fn(&str)>>>,
+    programmatic_setting: Rc<RefCell<bool>>,
     props: TextInput,
 }
 
-impl StateFunction for TextInputComponent {
+impl StateFunction for TextInputFunction {
     type Input = TextInput;
     type Output = NwgControlNode;
 
     fn build(props: Self::Input) -> (Self::Output, Self) {
         let on_input_ref = Rc::new(RefCell::new(props.on_input.clone()));
+        let on_user_input_ref = Rc::new(RefCell::new(props.on_user_input.clone()));
+        let programmatic_setting = Rc::new(RefCell::new(false));
         let (node, native) = NativeCommonComponentComponent::build(NativeCommonComponent {
             build: Rc::new({
                 let props = props.clone();
@@ -76,6 +82,8 @@ impl StateFunction for TextInputComponent {
             }),
             on_event: Rc::new({
                 let on_input_ref = on_input_ref.borrow().clone();
+                let on_user_input_ref = on_user_input_ref.borrow().clone();
+                let programmatic_setting = programmatic_setting.clone();
                 let current_text: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
                 move |event, _evt_data, _handlem, control| {
                     if let nwg::Event::OnTextInput = event {
@@ -87,6 +95,9 @@ impl StateFunction for TextInputComponent {
                         };
                         if changed {
                             *current_text.borrow_mut() = Some(new_text.clone());
+                            if !*programmatic_setting.borrow() {
+                                on_user_input_ref(&new_text);
+                            }
                             on_input_ref(&new_text);
                         }
                     }
@@ -98,7 +109,9 @@ impl StateFunction for TextInputComponent {
             node,
             Self {
                 native,
-                on_click_ref: on_input_ref,
+                on_input_ref,
+                on_user_input_ref,
+                programmatic_setting,
                 props,
             }
         )
@@ -108,7 +121,9 @@ impl StateFunction for TextInputComponent {
             //if props.text != self.props.text {
                 let current = label.text();
                 if props.text != current {
+                    *self.programmatic_setting.borrow_mut() = true;
                     label.set_text(&props.text);
+                    *self.programmatic_setting.borrow_mut() = false;
                 }
             //}
 
@@ -125,7 +140,11 @@ impl StateFunction for TextInputComponent {
             }
 
             if !Rc::ptr_eq(&props.on_input, &self.props.on_input) {
-                *self.on_click_ref.borrow_mut() = props.on_input.clone();
+                *self.on_input_ref.borrow_mut() = props.on_input.clone();
+            }
+
+            if !Rc::ptr_eq(&props.on_user_input, &self.props.on_user_input) {
+                *self.on_user_input_ref.borrow_mut() = props.on_user_input.clone();
             }
         });
         self.props = props;

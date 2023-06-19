@@ -35,16 +35,16 @@ impl Default for Button {
 }
 
 impl StateFunctionProps for Button {
-    type AssociatedComponent = ButtonComponent;
+    type AssociatedFunction = ButtonFunction;
 }
 
-pub struct ButtonComponent {
+pub struct ButtonFunction {
     native: NativeCommonComponentComponent<nwg::Button>,
     on_click_ref: Rc<RefCell<Rc<dyn Fn()>>>,
     props: Button,
 }
 
-impl StateFunction for ButtonComponent {
+impl StateFunction for ButtonFunction {
     type Input = Button;
     type Output = NwgControlNode;
 

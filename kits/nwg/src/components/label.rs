@@ -33,15 +33,15 @@ impl Default for Label {
 }
 
 impl StateFunctionProps for Label {
-    type AssociatedComponent = LabelComponent;
+    type AssociatedFunction = LabelFunction;
 }
 
-pub struct LabelComponent {
+pub struct LabelFunction {
     native: NativeCommonComponentComponent<nwg::Label>,
     props: Label,
 }
 
-impl StateFunction for LabelComponent {
+impl StateFunction for LabelFunction {
     type Input = Label;
     type Output = NwgControlNode;
 

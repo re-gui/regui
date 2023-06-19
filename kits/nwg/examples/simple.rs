@@ -9,7 +9,7 @@ fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
     nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
 
-    let (_out, _component) = LiveStateComponent::<MyWindowState>::build(MyWindowProps {});
+    let (_out, _component) = MyWindowProps {}.build();
 
     nwg::dispatch_thread_events();
 }
@@ -24,6 +24,7 @@ struct MyWindowState {
 impl Component for MyWindowState {
     type Props = MyWindowProps;
     type Out = ();
+    type Message = ();
 
     fn build(_props: Self::Props) -> Self {
         let mut window = nwg::Window::default();
@@ -39,10 +40,10 @@ impl Component for MyWindowState {
             window,
         }
     }
-    fn update(&mut self, _props: Self::Props) {
-    }
+    fn update(&mut self, _props: Self::Props) {}
+    fn on_message(&mut self, _message: Self::Message) {}
     fn view(&self, _link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out {
-        let nodes = cache.eval_live(MyCompProps);
+        let nodes = cache.live(MyCompProps);
         for node in nodes {
             let _ = node.borrow_mut().handle_from_parent(&self.window.handle);
         }
@@ -51,7 +52,7 @@ impl Component for MyWindowState {
 }
 
 impl StateFunctionProps for MyWindowProps {
-    type AssociatedComponent = LiveStateComponent<MyWindowState>;
+    type AssociatedFunction = LiveStateComponent<MyWindowState>;
 }
 
 #[derive(Clone)]
@@ -63,32 +64,38 @@ struct MyCompState {
 }
 
 impl StateFunctionProps for MyCompProps {
-    type AssociatedComponent = LiveStateComponent<MyCompState>;
+    type AssociatedFunction = LiveStateComponent<MyCompState>;
+}
+
+enum MyMessage {
+    SetText(String),
 }
 
 impl Component for MyCompState {
     type Props = MyCompProps;
     type Out = Vec<NwgControlNode>;
+    type Message = MyMessage;
     fn build(_props: Self::Props) -> Self {
         Self {
             text: "ciao".into(),
         }
     }
-    fn update(&mut self, _props: Self::Props) {
+    fn update(&mut self, _props: Self::Props) {}
+    fn on_message(&mut self, message: Self::Message) {
+        match message {
+            MyMessage::SetText(text) => {
+                self.text = text;
+            }
+        }
     }
     fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out {
-        println!("view");
+        //println!("view");
         let mut v = vec![
             cache.eval(Button {
                 text: "PUSH".into(),
                 on_click: Rc::new({
                     let link = link.clone();
-                    move || {
-                        link.send_update(|state| {
-                            println!("push");
-                            state.text.push_str("a");
-                        });
-                    }
+                    move || link.send_update(|state| state.text.push_str("a"))
                 }),
                 ..Default::default()
             }),
@@ -97,28 +104,18 @@ impl Component for MyCompState {
                 position: Some((100, 0)),
                 on_click: Rc::new({
                     let link = link.clone();
-                    move || {
-                        link.send_update(|state| {
-                            println!("pop");
-                            state.text.pop();
-                        });
-                    }
+                    move || link.send_update(|state| { state.text.pop(); })
                 }),
                 ..Default::default()
             }),
             cache.eval(TextInput {
                 text: self.text.clone(),
                 position: Some((200, 0)),
-                on_input: Rc::new({
+                on_user_input: Rc::new({
                     let link = link.clone();
                     move |text| {
-                        link.send_update({
-                            let text = text.to_string();
-                            move |state| {
-                                println!("input");
-                                state.text = text;
-                            }
-                        });
+                        println!("input");
+                        link.send_message(MyMessage::SetText(text.into()));
                     }
                 }),
                 ..Default::default()

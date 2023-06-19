@@ -2,8 +2,9 @@
 use std::rc::Rc;
 
 use native_windows_gui as nwg;
+use regui::{StateFunctionProps, StateFunction};
 
-use crate::{kits::nwg::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent}, state_function::{StateFunction, StateFunctionProps}};
+use crate::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
 impl NwgNativeCommonControl for nwg::Label {
     fn handle(&self) -> &nwg::ControlHandle {
@@ -41,10 +42,10 @@ pub struct LabelComponent {
 }
 
 impl StateFunction for LabelComponent {
-    type Props = Label;
+    type Input = Label;
     type Output = NwgControlNode;
 
-    fn build(props: Self::Props) -> (Self::Output, Self) {
+    fn build(props: Self::Input) -> (Self::Output, Self) {
         let (node, native) = NativeCommonComponentComponent::build(NativeCommonComponent {
             build: Rc::new({
                 let props = props.clone();
@@ -79,7 +80,7 @@ impl StateFunction for LabelComponent {
             }
         )
     }
-    fn changed(&mut self, props: Self::Props) -> Self::Output {
+    fn changed(&mut self, props: Self::Input) -> Self::Output {
         self.native.if_control(|label| {
             if props.text != self.props.text {
                 label.set_text(&props.text);

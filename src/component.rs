@@ -52,15 +52,6 @@ impl<State: 'static> StateManager<State> {
         }
     }
 
-    //pub fn set_builder_run(&self, builder: impl FnMut(&P/*, &UiBuilder<Ctx>*/, StateLink<P>) + 'static) {
-    //    let mut manager = self.inner.borrow_mut();
-    //    if manager.in_build {
-    //        panic!("Cannot set builder while building");
-    //    }
-    //    manager.builder_fn = Some(Box::new(builder));
-    //    manager.run(self.link());
-    //}
-
     pub fn set_builder(&self, builder: impl Fn(StateLink<State>) + 'static) {
         *self.inner.builder_fn.borrow_mut() = Rc::new(builder);
     }
@@ -70,17 +61,6 @@ impl<State: 'static> StateManager<State> {
             state: Rc::downgrade(&self.inner),
         }
     }
-
-    //pub fn take_state(&self) -> Option<State> {
-    //    // TODO to check
-    //    let mut manager = self.inner.borrow_mut();
-    //    manager.state.take()
-    //}
-
-    //pub fn set_state(&self, state: State) {
-    //    self.inner.borrow_mut().state = Some(state);
-    //    self.inner.borrow().run(self.link()); // TODO run???
-    //}
 
     pub fn on_state<R>(&self, on_state: impl FnOnce(&State) -> R) -> R {
         self.inner.on_state(on_state)
@@ -94,6 +74,7 @@ impl<State: 'static> StateManager<State> {
 pub struct StateLink<P> {
     state: Weak<StateManagerInner<P>>,
 }
+// TODO An intermediate between this and an mpsc
 
 impl<P> Clone for StateLink<P> {
     fn clone(&self) -> Self {
@@ -104,15 +85,6 @@ impl<P> Clone for StateLink<P> {
 }
 
 impl<State> StateLink<State> {
-
-    //pub fn set(&self, state: P) {
-    //    if let Some(manager) = self.state.upgrade() {
-    //        manager.borrow_mut().state = Some(state);
-    //        manager.borrow().run(self.clone());
-    //    }
-    //    // if expired, no effect
-    //}
-
     pub fn update(&self, update: impl FnOnce(&mut State)) {
         // TODO call self.set, instead of duplicating the code
         if let Some(manager) = self.state.upgrade() {
@@ -125,10 +97,6 @@ impl<State> StateLink<State> {
     }
 
     // TODO update_eq
-
-    //fn upgrade(&self) -> Option<StateManagerWrapper<P, F>> {
-    //    self.state.upgrade().map(|state| StateManagerWrapper { state })
-    //}
 }
 
 pub struct FunctionsCacheData {
@@ -178,7 +146,7 @@ impl FunctionsCache {
 
     // TODO get_if_new and get_if_changed
 
-    pub fn eval_state_function<SF: StateFunction>(&self, props: SF::Props) -> SF::Output {
+    pub fn eval_state_function<SF: StateFunction>(&self, props: SF::Input) -> SF::Output {
         let mut data = self.data.borrow_mut();
         let pos = data.functions_pos;
         let result = if pos < data.functions.len() {
@@ -217,5 +185,101 @@ impl FunctionsCache {
         let pos = data.functions_pos;
         data.functions.truncate(pos);
         data.functions_pos = 0;
+    }
+}
+
+pub trait Component: Sized + 'static { // TODO remove 'static
+    type Props;
+    type Out: PartialEq + Clone + 'static;
+    #[must_use]
+    fn build(props: Self::Props) -> Self;
+    fn update(&mut self, props: Self::Props);
+    #[must_use]
+    fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out;
+}
+
+pub struct LiveStateComponent<SC: Component> {
+    state_manager: Rc<RefCell<StateManager<SC>>>,
+    //components_cache: Rc<RefCell<FunctionsCache>>,
+    out: Rc<RefCell<SC::Out>>,
+    live_link: LiveLink,
+}
+
+impl<SC: Component> StateFunction for LiveStateComponent<SC> {
+    type Input = SC::Props;
+    type Output = LiveValue<SC::Out>;
+    fn build(props: Self::Input) -> (Self::Output, Self) {
+
+        let component = SC::build(props);
+        let state_manager = StateManager::<SC>::new(component);
+        let components_cache = Rc::new(RefCell::new(FunctionsCache::new()));
+
+        let result = {
+            let result = state_manager.on_state(|component| {
+                component.view(state_manager.link(), &components_cache.borrow_mut())
+            });
+            components_cache.borrow_mut().finish();
+            result
+        };
+        let out = Rc::new(RefCell::new(result.clone()));
+
+        let live_link = LiveLink::new();
+
+        components_cache.borrow_mut().emitter().listen({
+            let link = state_manager.link();
+            move || {
+                link.update(|_| {});
+            }
+        });
+
+        let state_manager = Rc::new(RefCell::new(state_manager));
+
+        state_manager.borrow_mut().set_builder({
+            let cache = components_cache.clone();
+            let out = out.clone();
+            let live_link = live_link.clone();
+            let state_manager = state_manager.clone();
+            move |link| {
+                let mut cache = cache.borrow_mut();
+                let new_result = {
+                    let result = state_manager.borrow().on_state(|component| {
+                        component.view(link.clone(), &cache)
+                    });
+                    cache.finish();
+                    result
+                };
+                if new_result != *out.borrow() {
+                    // set new result
+                    *out.borrow_mut() = new_result.clone();
+                    // signal change
+                    live_link.tell_update();
+                }
+            }
+        });
+
+        (
+            live_link.make_live_value(result),
+            Self {
+                state_manager,
+                //components_cache,
+                out,
+                live_link,
+            }
+        )
+    }
+    fn changed(&mut self, props: Self::Input) -> Self::Output {
+        self.state_manager.borrow().on_mut_state(|component| {
+            component.update(props);
+        });
+
+        // TODO when a component internally updates its state, it will use this update function.
+        // this will cause the parent's view function to be called, which will call the child's changed function (this function).
+        // But this function will call update again here, wich will cause the view function to be called again.
+        // This will cause the view function to be called twice, which is not good.
+        // Maybe just removing this call will be enough, since the the component's update will already call the link update function if needed,
+        // but this should be analyzed more in depth.
+        self.state_manager.borrow().link().update(|_| {});
+
+        self.live_link.make_live_value(self.out.borrow().clone())
     }
 }

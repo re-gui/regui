@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-native-windows-derive = "1.0.5"
-native-windows-gui = "1.0.13"
 #plotters = "0.3.4"
 #glazier = { git = "https://github.com/linebender/glazier", version = "0.7.0" }
 #kurbo = "0.9.4"
@@ -24,3 +22,8 @@ native-windows-gui = "1.0.13"
 #raw-window-handle = "0.5.0"
 #winit = "0.28.1"
 #skia-safe = { version = "0.58.0", features = ["gl"] }
+
+[workspace]
+members = [
+    "kits/nwg"
+]

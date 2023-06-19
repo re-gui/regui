@@ -3,7 +3,7 @@ use std::{rc::Rc, cell::RefCell, ops::Deref};
 
 use native_windows_gui as nwg;
 
-use crate::state_function::StateFunction;
+use regui::StateFunction;
 
 //use crate::Callback;
 
@@ -23,7 +23,9 @@ impl Drop for NwgHandler {
 }
 
 pub struct NCCData<Control: NwgNativeCommonControl> {
-    handler: NwgHandler,
+    // NOTE: the handler has to be the first member, because it is dropped first.
+    // handler cannot be dropped after the control is dropped. `unbind_event_handler` panics if the control is dropped.
+    _handler: NwgHandler,
     parent_handle: nwg::ControlHandle,
     component: Control,
 }
@@ -65,9 +67,9 @@ impl<Control: NwgNativeCommonControl> NativeCommonComponentComponent<Control> {
 }
 
 impl<Control: NwgNativeCommonControl> StateFunction for NativeCommonComponentComponent<Control> {
-    type Props = NativeCommonComponent<Control>;
+    type Input = NativeCommonComponent<Control>;
     type Output = NwgControlNode;
-    fn build(props: Self::Props) -> (Self::Output, Self) {
+    fn build(props: Self::Input) -> (Self::Output, Self) {
         let mut component = Self {
             data: Rc::new(RefCell::new(None)),
             node: None,
@@ -78,7 +80,7 @@ impl<Control: NwgNativeCommonControl> StateFunction for NativeCommonComponentCom
 
         (node, component)
     }
-    fn changed(&mut self, props: Self::Props) -> Self::Output {
+    fn changed(&mut self, props: Self::Input) -> Self::Output {
         // TODO check if props changed, especially on_event
         self.props = props;
         self.get_node()
@@ -128,7 +130,7 @@ impl<Control: NwgNativeCommonControl> NwgControlNodeTrait for NativeCommonCompon
             let data = NCCData {
                 parent_handle: parent_handle.clone(),
                 component: control,
-                handler: NwgHandler(handler),
+                _handler: NwgHandler(handler),
             };
 
             let data = Rc::new(data);

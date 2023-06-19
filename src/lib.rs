@@ -17,11 +17,6 @@ macro_rules! comp {
 }
 */
 
-pub mod state_function;
+mod state_function; pub use state_function::*; // TODO better
 pub mod context;
-pub mod functional_component;
-pub mod kits;
-
-mod callback;
-
-//pub use callback::Callback;
+pub mod component;

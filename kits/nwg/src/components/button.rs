@@ -2,8 +2,9 @@
 use std::{rc::Rc, cell::RefCell};
 
 use native_windows_gui as nwg;
+use regui::{StateFunctionProps, StateFunction};
 
-use crate::{kits::nwg::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent}, state_function::{StateFunction, StateFunctionProps}};
+use crate::{NwgNativeCommonControl, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
 impl NwgNativeCommonControl for nwg::Button {
     fn handle(&self) -> &nwg::ControlHandle {
@@ -44,10 +45,10 @@ pub struct ButtonComponent {
 }
 
 impl StateFunction for ButtonComponent {
-    type Props = Button;
+    type Input = Button;
     type Output = NwgControlNode;
 
-    fn build(props: Self::Props) -> (Self::Output, Self) {
+    fn build(props: Self::Input) -> (Self::Output, Self) {
         let on_click_ref = Rc::new(RefCell::new(props.on_click.clone()));
         let (node, native) = NativeCommonComponentComponent::build(NativeCommonComponent {
             build: Rc::new({
@@ -91,7 +92,7 @@ impl StateFunction for ButtonComponent {
             }
         )
     }
-    fn changed(&mut self, props: Self::Props) -> Self::Output {
+    fn changed(&mut self, props: Self::Input) -> Self::Output {
         self.native.if_control(|label| {
             if props.text != self.props.text {
                 label.set_text(&props.text);

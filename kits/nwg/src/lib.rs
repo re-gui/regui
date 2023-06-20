@@ -3,7 +3,7 @@ use std::{rc::Rc, cell::RefCell, ops::Deref};
 
 use native_windows_gui as nwg;
 
-use regui::{StateFunction, component::{Component, LiveStateComponent}, function_component::{ComponentFunction, FunctionComponent}};
+use regui::{StateFunction, component::{Component, LiveStateComponent}};
 
 //use crate::Callback;
 

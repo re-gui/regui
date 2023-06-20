@@ -2,7 +2,7 @@
 use std::{rc::Rc, cell::RefCell, ops::Deref};
 
 use native_windows_gui as nwg;
-use regui::{StateFunction, component::{EvalFromCache, FunctionsCache}};
+use regui::{StateFunction, component::{GetFromCache, FunctionsCache}};
 
 use crate::{WithNwgControlHandle, NwgControlNode};
 
@@ -86,9 +86,9 @@ impl Window {
     }
 }
 
-impl EvalFromCache for Window {
+impl GetFromCache for Window {
     type Out = nwg::ControlHandle;
-    fn eval(self, cache: &FunctionsCache) -> Self::Out {
+    fn get(self, cache: &FunctionsCache) -> Self::Out {
         cache.eval::<WindowFunction>(self)
     }
 }
@@ -241,7 +241,7 @@ impl StateFunction for WindowFunction {
         let window = Rc::new(window);
 
         let handler = nwg::full_bind_event_handler(&window.handle, {
-            let on_window_event_ref = Rc::clone(&on_window_event_ref);
+            let on_window_event_ref = on_window_event_ref.clone();
             let window = Rc::downgrade(&window);
             move |event, _evt_data, handle| {
                 let window = match window.upgrade() {
@@ -274,7 +274,8 @@ impl StateFunction for WindowFunction {
                     _ => None
                 };
                 if let Some(event) = event {
-                    (on_window_event_ref.borrow())(event);
+                    let on_window_event = on_window_event_ref.borrow().clone();
+                    (on_window_event)(event);
                 }
             }
         });

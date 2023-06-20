@@ -2,7 +2,7 @@
 use std::{rc::Rc, cell::RefCell};
 
 use native_windows_gui as nwg;
-use regui::{StateFunction, component::{FunctionsCache, EvalFromCache}};
+use regui::{StateFunction, component::{FunctionsCache, GetFromCache}};
 
 use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
@@ -74,9 +74,9 @@ impl ButtonPropsBuilder {
     }
 }
 
-impl EvalFromCache for ButtonPropsBuilder {
+impl GetFromCache for ButtonPropsBuilder {
     type Out = NwgControlNode;
-    fn eval(self, cache: &FunctionsCache) -> Self::Out {
+    fn get(self, cache: &FunctionsCache) -> Self::Out {
         cache.eval::<Button>(self.build_props())
     }
 }
@@ -128,10 +128,11 @@ impl StateFunction for Button {
                 }
             }),
             on_event: Rc::new({
-                let on_click_ref = on_click_ref.borrow().clone();
+                let on_click_ref = on_click_ref.clone();
                 move |event, _evt_data, _handle, _control| {
+                    let on_click = on_click_ref.borrow().clone();
                     if let nwg::Event::OnButtonClick = event {
-                        on_click_ref();
+                        on_click();
                     }
                 }
             }),

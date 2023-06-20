@@ -2,7 +2,7 @@
 use std::{rc::Rc, cell::RefCell};
 
 use native_windows_gui as nwg;
-use regui::{StateFunction, component::{FunctionsCache, EvalFromCache}};
+use regui::{StateFunction, component::{FunctionsCache, GetFromCache}};
 
 use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
@@ -84,9 +84,9 @@ impl TextInputPropsBuilder {
     }
 }
 
-impl EvalFromCache for TextInputPropsBuilder {
+impl GetFromCache for TextInputPropsBuilder {
     type Out = NwgControlNode;
-    fn eval(self, cache: &FunctionsCache) -> Self::Out {
+    fn get(self, cache: &FunctionsCache) -> Self::Out {
         cache.eval::<TextInput>(self.build_props())
     }
 }
@@ -142,8 +142,8 @@ impl StateFunction for TextInput {
                 }
             }),
             on_event: Rc::new({
-                let on_input_ref = on_input_ref.borrow().clone();
-                let on_user_input_ref = on_user_input_ref.borrow().clone();
+                let on_input_ref = on_input_ref.clone();
+                let on_user_input_ref = on_user_input_ref.clone();
                 let programmatic_setting = programmatic_setting.clone();
                 let current_text: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
                 move |event, _evt_data, _handlem, control| {
@@ -157,9 +157,11 @@ impl StateFunction for TextInput {
                         if changed {
                             *current_text.borrow_mut() = Some(new_text.clone());
                             if !*programmatic_setting.borrow() {
-                                on_user_input_ref(&new_text);
+                                let on_user_input = on_user_input_ref.borrow().clone();
+                                on_user_input(&new_text);
                             }
-                            on_input_ref(&new_text);
+                            let on_input = on_input_ref.borrow().clone();
+                            on_input(&new_text);
                         }
                     }
                 }

@@ -131,7 +131,7 @@ impl<State> StateLink<State> {
         // if expired, no effect
     }
 
-    // TODO update_eq
+    // TODO update_eq <- this wan an old idea, maybe it's not beneficial / pointless / impossible
 }
 
 impl<State> StateLink<State>
@@ -260,9 +260,15 @@ pub trait Component: Sized + 'static { // TODO remove 'static
     // TODO reuse with component
 }
 
+pub trait GetFromCache {
+    type Out;
+    fn get(self, cache: &FunctionsCache) -> Self::Out;
+}
+
 pub trait EvalFromCache {
     type Out;
-    fn eval(self, cache: &FunctionsCache) -> Self::Out;
+    type Input;
+    fn eval(cache: &FunctionsCache, input: Self::Input) -> Self::Out;
 }
 
 pub struct LiveStateComponent<SC: Component> {

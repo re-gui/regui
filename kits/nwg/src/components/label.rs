@@ -2,7 +2,7 @@
 use std::rc::Rc;
 
 use native_windows_gui as nwg;
-use regui::{StateFunction, component::{FunctionsCache, EvalFromCache}};
+use regui::{StateFunction, component::{FunctionsCache, GetFromCache}};
 
 use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
@@ -62,9 +62,9 @@ impl LabelPropsBuilder {
     }
 }
 
-impl EvalFromCache for LabelPropsBuilder {
+impl GetFromCache for LabelPropsBuilder {
     type Out = NwgControlNode;
-    fn eval(self, cache: &FunctionsCache) -> Self::Out {
+    fn get(self, cache: &FunctionsCache) -> Self::Out {
         cache.eval::<Label>(self.build_props())
     }
 }

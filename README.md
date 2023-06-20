@@ -5,6 +5,7 @@
 
 ## Quickstart
 
+At the moment, the only decent exmple is the [basic_functional](./kits/nwg/examples/basic_functional.rs) example.
 ```sh
 cargo run -p regui-nwg --example basic_functional
 ```

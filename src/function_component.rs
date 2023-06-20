@@ -20,7 +20,7 @@ use crate::component::{FunctionsCache, Component, StateLink};
 macro_rules! function_component {
     (pub $name:ident $func_name:ident ($props:ty) -> $out:ty) => {
         pub struct $name;
-        impl $crate::function_component::FCFunction for $name {
+        impl $crate::function_component::ComponentFunction for $name {
             type Props = $props;
             type Out = $out;
             fn call<'a>(props: &Self::Props, cache: &$crate::component::FunctionsCache, state: &mut State<'a>) -> Self::Out {
@@ -31,13 +31,13 @@ macro_rules! function_component {
             type Input = $props;
             type Out = $out;
             fn eval(cache: &FunctionsCache, input: Self::Input) -> Self::Out {
-                cache.eval_live::<LiveStateComponent<FunctionalComponent<$name>>, $out>(input)
+                cache.eval_live::<LiveStateComponent<FunctionComponent<$name>>, $out>(input)
             }
         }
     };
     (priv $name:ident $func_name:ident ($props:ty) -> $out:ty) => {
         struct $name;
-        impl $crate::function_component::FCFunction for $name {
+        impl $crate::function_component::ComponentFunction for $name {
             type Props = $props;
             type Out = $out;
             fn call<'a>(props: &Self::Props, cache: &$crate::component::FunctionsCache, state: &mut State<'a>) -> Self::Out {
@@ -48,7 +48,7 @@ macro_rules! function_component {
             type Input = $props;
             type Out = $out;
             fn eval(cache: &FunctionsCache, input: Self::Input) -> Self::Out {
-                cache.eval_live::<LiveStateComponent<FunctionalComponent<$name>>, $out>(input)
+                cache.eval_live::<LiveStateComponent<FunctionComponent<$name>>, $out>(input)
             }
         }
     };
@@ -57,18 +57,18 @@ macro_rules! function_component {
     }
 }
 
-pub trait FCFunction: 'static {
+pub trait ComponentFunction: 'static {
     type Props;
     type Out: Clone + PartialEq;
     fn call<'a>(props: &Self::Props, cache: &FunctionsCache, state: &mut State<'a>) -> Self::Out;
 }
 
-pub struct FunctionalComponent<F: FCFunction> {
+pub struct FunctionComponent<F: ComponentFunction> {
     props: F::Props,
     manager: RefCell<StateVeriablesManager>,
 }
 
-impl<F: FCFunction> Component for FunctionalComponent<F>
+impl<F: ComponentFunction> Component for FunctionComponent<F>
 {
     type Props = F::Props;
     type Message = ();

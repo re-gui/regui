@@ -1,25 +1,17 @@
 #![windows_subsystem = "windows"]
 
-use std::{rc::Rc, any::Any, cell::RefCell, ops::Deref};
+use std::rc::Rc;
 
 
 use native_windows_gui as nwg;
-use regui::{component::{LiveStateComponent, Component, StateLink, FunctionsCache, GetFromCache}, StateFunction, function_component::{State, FunctionalComponent, FCFunction}, function_component};
-use regui_nwg::{NwgControlNode, components::{ButtonProps, LabelProps, TextInputProps, Window, WindowEvent, Button, Label, TextInput}};
+use regui::component::{LiveStateComponent, Component, StateLink, FunctionsCache, GetFromCache};
+use regui_nwg::{NwgControlNode, components::{Window, WindowEvent, Button, Label, TextInput}, run_ui};
 
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
     nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
 
-    //let (_out, _component) = LiveStateComponent::<UiState>::build(Ui);
-    //nwg::dispatch_thread_events();
-
     run_ui::<UiState>(Ui);
-}
-
-fn run_ui<UiComponent: Component>(props: UiComponent::Props) {
-    let (_out, _component) = LiveStateComponent::<UiComponent>::build(props);
-    nwg::dispatch_thread_events();
 }
 
 struct Ui;
@@ -55,17 +47,9 @@ impl Component for UiState {
 
         let _ = Window::builder()
             .title(&self.title)
-            //.content(WindowContent {
-            //    change_text: Box::new(set_title),
-            //}.eval(cache).into())
-            //.content(
-            //    cache.eval_live::<LiveStateComponent<FunctionalComponent<Example>>, Vec<NwgControlNode>>(())
-            //        .into()
-            //)
-            .content(
-                cache.eval_live::<LiveStateComponent<FunctionalComponent<Ciao>>, Vec<NwgControlNode>>(42)
-                    .into()
-            )
+            .content(WindowContent {
+                change_text: Box::new(set_title),
+            }.get(cache).into())
             .on_window_event(|event| {
                 match event {
                     WindowEvent::CloseRequest => nwg::stop_thread_dispatch(),
@@ -160,24 +144,5 @@ impl Component for WindowContentState {
         v
     }
 }
-
-function_component!(pub Ciao ciao(i32) -> Vec<NwgControlNode>);
-fn ciao(props: &i32, cache: &FunctionsCache, state: &mut State) -> Vec<NwgControlNode> {
-    let counter = state.use_state(|| *props);
-
-    let a = 3;
-
-    vec![
-        Button::builder()
-            .text(format!("counter: {}", *counter))
-            .on_click({
-                let counter = counter.clone();
-                move || counter.set(*counter + 1)
-            })
-            .get(cache)
-    ]
-}
-
-
 
 

@@ -4,33 +4,25 @@
 use std::{rc::Rc, ops::Deref};
 
 use native_windows_gui as nwg;
-use regui::{component::{LiveStateComponent, Component, FunctionsCache, GetFromCache, EvalFromCache}, StateFunction, function_component::{State, FunctionalComponent, FCFunction}, function_component};
-use regui_nwg::{NwgControlNode, components::{Window, WindowEvent, Button, Label, TextInput}};
+use regui::{component::{LiveStateComponent, FunctionsCache, GetFromCache, EvalFromCache}, function_component::{State, FunctionComponent}, function_component};
+use regui_nwg::{NwgControlNode, components::{Window, WindowEvent, Button, Label, TextInput}, run_ui};
 
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
     nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
 
-    run_ui_functional::<ExampleUi>(());
-}
-
-fn run_ui<UiComponent: Component>(props: UiComponent::Props) {
-    let (_out, _component) = LiveStateComponent::<UiComponent>::build(props);
-    nwg::dispatch_thread_events();
-}
-
-fn run_ui_functional<FC: FCFunction>(props: FC::Props) {
-    run_ui::<FunctionalComponent<FC>>(props);
+    run_ui::<FunctionComponent<ExampleUi>>(());
 }
 
 impl GetFromCache for ExampleUi {
     type Out = ();
     fn get(self, cache: &FunctionsCache) -> Self::Out {
-        cache.eval_live::<LiveStateComponent<FunctionalComponent<ExampleUi>>, ()>(())
+        cache.eval_live::<LiveStateComponent<FunctionComponent<ExampleUi>>, ()>(())
     }
 }
 
 function_component!(ExampleUi example_ui(()) -> ());
+
 fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
     // TODO a hook to initialize the value only once. It shoud behave like use_state but should
     // jsut return a non-modifiable value (maybe just an RC), not UseStateHandle
@@ -56,6 +48,7 @@ fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
 }
 
 function_component!(ExampleContent example_content(i32) -> (String, Vec<NwgControlNode>));
+
 fn example_content(props: &i32, cache: &FunctionsCache, state: &mut State) -> (String, Vec<NwgControlNode>) {
     let title = state.use_state(|| props.to_string());
 
@@ -76,7 +69,7 @@ fn example_content(props: &i32, cache: &FunctionsCache, state: &mut State) -> (S
             .get(cache),
         Button::builder()
             .text("CLOSE")
-            .position(0, 25)
+            .position(title.len() as i32 * 5, 25)
             .on_click(|| nwg::stop_thread_dispatch())
             .get(cache),
     ];

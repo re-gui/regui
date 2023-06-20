@@ -18,7 +18,8 @@ pub struct LabelProps {
     pub text: String, // TODO cow
     pub position: Option<(i32, i32)>,
     pub size: Option<(i32, i32)>,
-    // TODO font etc.
+    // TODO font
+    // TODO alignment
 }
 
 impl Default for LabelProps {

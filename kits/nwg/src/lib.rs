@@ -3,11 +3,20 @@ use std::{rc::Rc, cell::RefCell, ops::Deref};
 
 use native_windows_gui as nwg;
 
-use regui::StateFunction;
+use regui::{StateFunction, component::{Component, LiveStateComponent}, function_component::{ComponentFunction, FunctionComponent}};
 
 //use crate::Callback;
 
 pub mod components;
+
+pub fn run_ui<UiComponent: Component>(props: UiComponent::Props) {
+    let (_out, _component) = LiveStateComponent::<UiComponent>::build(props);
+    nwg::dispatch_thread_events();
+}
+
+//pub fn run_ui_functional<FC: FCFunction>(props: FC::Props) {
+//    run_ui::<FunctionalComponent<FC>>(props);
+//}
 
 /// A [`native_windows_gui`] [Common Control](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)
 pub trait WithNwgControlHandle: 'static {

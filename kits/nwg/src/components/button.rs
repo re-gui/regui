@@ -45,10 +45,12 @@ impl ButtonPropsBuilder {
         self.props.id = Some(id);
         self
     }
+
     pub fn text(mut self, text: impl Into<String>) -> Self {
         self.props.text = text.into();
         self
     }
+
     pub fn position(mut self, x: i32, y: i32) -> Self {
         self.props.position = Some((x, y));
         self
@@ -100,11 +102,11 @@ impl StateFunction for Button {
     type Input = ButtonProps;
     type Output = NwgControlNode;
 
-    fn build(props: Self::Input) -> (Self::Output, Self) {
-        let on_click_ref = Rc::new(RefCell::new(props.on_click.clone()));
+    fn build(input: Self::Input) -> (Self::Output, Self) {
+        let on_click_ref = Rc::new(RefCell::new(input.on_click.clone()));
         let (node, native) = NativeCommonComponentComponent::build(NativeCommonComponent {
             build: Rc::new({
-                let props = props.clone();
+                let props = input.clone();
                 move |parent| {
                     let mut label = Default::default();
                     let mut builder = nwg::Button::builder()
@@ -127,7 +129,7 @@ impl StateFunction for Button {
                     label
                 }
             }),
-            on_event: Rc::new({
+            on_native_event: Rc::new({
                 let on_click_ref = on_click_ref.clone();
                 move |event, _evt_data, _handle, _control| {
                     let on_click = on_click_ref.borrow().clone();
@@ -136,6 +138,7 @@ impl StateFunction for Button {
                     }
                 }
             }),
+            on_event: Rc::new(|_| {}), // TODO
         });
 
         (
@@ -143,7 +146,7 @@ impl StateFunction for Button {
             Self {
                 native,
                 on_click_ref,
-                props,
+                props: input,
             }
         )
     }
@@ -176,4 +179,5 @@ impl StateFunction for Button {
         self.props = props;
         self.native.get_node()
     }
+    // TODO reuse_with
 }

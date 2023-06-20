@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use native_windows_gui as nwg;
 use regui::component::{LiveStateComponent, Component, StateLink, FunctionsCache, GetFromCache};
-use regui_nwg::{NwgControlNode, components::{Window, WindowEvent, Button, Label, TextInput}, run_ui};
+use regui_nwg::{NwgControlNode, components::{Window, Button, Label, TextInput}, run_ui, WindowEvent};
 
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");

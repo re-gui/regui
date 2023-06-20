@@ -44,7 +44,8 @@ pub struct NativeCommonComponent<Control: WithNwgControlHandle> {
     //build: Callback<dyn Fn(nwg::ControlHandle) -> Control>,
     pub build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
     //on_event: Option<Callback<dyn Fn(&nwg::Event, nwg::EventData, nwg::ControlHandle)>>,
-    pub on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>,
+    pub on_native_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>,
+    pub on_event: Rc<dyn Fn(&ControlEvent)>,
 }
 
 pub struct NativeCommonComponentComponent<Control: WithNwgControlHandle> {
@@ -66,6 +67,7 @@ impl<Control: WithNwgControlHandle> NativeCommonComponentComponent<Control> {
         } else {
             let node = NwgControlNode(Rc::new(RefCell::new(NativeCommonComponentNode {
                 data: self.data.clone(),
+                on_native_event: self.props.on_native_event.clone(),
                 on_event: self.props.on_event.clone(),
                 build: self.props.build.clone(),
             })));
@@ -98,7 +100,8 @@ impl<Control: WithNwgControlHandle> StateFunction for NativeCommonComponentCompo
 
 pub struct NativeCommonComponentNode<Control: WithNwgControlHandle> {
     data: Rc<RefCell<Option<Rc<NCCData<Control>>>>>,
-    on_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>, // TODO double Rc
+    on_native_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>, // TODO double Rc
+    on_event: Rc<dyn Fn(&ControlEvent)>,
     build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
 }
 
@@ -123,6 +126,7 @@ impl<Control: WithNwgControlHandle> NwgControlNodeTrait for NativeCommonComponen
             let control = Rc::new((self.build)(parent_handle));
 
             let handler = {
+                let on_native_event = self.on_native_event.clone();
                 let on_event = self.on_event.clone();
                 let control_handle = control.nwg_control_handle().clone();
                 let control_weak = Rc::downgrade(&control);
@@ -132,7 +136,11 @@ impl<Control: WithNwgControlHandle> NwgControlNodeTrait for NativeCommonComponen
                     move |event, event_data, handle| {
                         if handle == control_handle {
                             if let Some(control) = control_weak.upgrade() {
-                                (on_event)(&event, &event_data, &handle, &control);
+                                (on_native_event)(&event, &event_data, &handle, &control);
+                            }
+                            let event = ControlEvent::from_nwg_event(&event, &event_data, &handle);
+                            if let Some(event) = event {
+                                (on_event)(&event);
                             }
                         }
                     }
@@ -184,4 +192,105 @@ impl Deref for NwgControlNode {
     fn deref(&self) -> &Self::Target {
         &self.0
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ControlEvent {
+    Window(WindowEvent),
+    Mouse(MouseEvent),
+}
+
+impl ControlEvent {
+    pub fn from_nwg_event(event: &nwg::Event, event_data: &nwg::EventData, handle: &nwg::ControlHandle) -> Option<Self> {
+        let mouse_global_pos = nwg::GlobalCursor::position();
+        let mouse_local_pos = nwg::GlobalCursor::local_position(handle, Some(mouse_global_pos));
+        match event {
+            nwg::Event::OnWindowClose => Some(ControlEvent::Window(WindowEvent::CloseRequest)),
+            nwg::Event::OnWindowMaximize => Some(ControlEvent::Window(WindowEvent::Maximize)),
+            nwg::Event::OnWindowMinimize => Some(ControlEvent::Window(WindowEvent::Minimize)),
+            nwg::Event::OnMove => None, // TODO
+            nwg::Event::OnResize => None, // TODO
+            nwg::Event::OnMouseMove => {
+                let event = MouseEvent::Move {
+                    x: mouse_local_pos.0,
+                    y: mouse_local_pos.1,
+                    global_x: mouse_global_pos.0,
+                    global_y: mouse_global_pos.1,
+                };
+                Some(ControlEvent::Mouse(event))
+            }
+            nwg::Event::OnMousePress(button) => {
+                let event = match button {
+                    nwg::MousePressEvent::MousePressLeftDown => MouseEvent::Pressed {
+                        x: mouse_local_pos.0,
+                        y: mouse_local_pos.1,
+                        global_x: mouse_global_pos.0,
+                        global_y: mouse_global_pos.1,
+                    },
+                    nwg::MousePressEvent::MousePressLeftUp => MouseEvent::Released {
+                        x: mouse_local_pos.0,
+                        y: mouse_local_pos.1,
+                        global_x: mouse_global_pos.0,
+                        global_y: mouse_global_pos.1,
+                    },
+                    nwg::MousePressEvent::MousePressRightDown => MouseEvent::Pressed {
+                        x: mouse_local_pos.0,
+                        y: mouse_local_pos.1,
+                        global_x: mouse_global_pos.0,
+                        global_y: mouse_global_pos.1,
+                    },
+                    nwg::MousePressEvent::MousePressRightUp => MouseEvent::Released {
+                        x: mouse_local_pos.0,
+                        y: mouse_local_pos.1,
+                        global_x: mouse_global_pos.0,
+                        global_y: mouse_global_pos.1,
+                    },
+                    // TODO middle? x1? x2?
+                };
+                Some(ControlEvent::Mouse(event))
+            }
+            nwg::Event::OnMouseWheel => {
+                let delta = match event_data {
+                    nwg::EventData::OnMouseWheel(delta) => *delta,
+                    _ => panic!("Unexpected event data type")
+                };
+                let event = MouseEvent::Wheel {
+                    delta,
+                    x: mouse_local_pos.0,
+                    y: mouse_local_pos.1,
+                    global_x: mouse_global_pos.0,
+                    global_y: mouse_global_pos.1,
+                };
+                Some(ControlEvent::Mouse(event))
+            }
+            _ => None,
+        }
+    }
+}
+
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
+    X1,
+    X2,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum WindowEvent {
+    CloseRequest,
+    Maximize,
+    Minimize,
+    Moved(i32, i32),
+    Resized(u32, u32),
+
+    Paint,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MouseEvent {
+    Pressed { x: i32, y: i32, global_x: i32, global_y: i32 },
+    Released { x: i32, y: i32, global_x: i32, global_y: i32 },
+    Move { x: i32, y: i32, global_x: i32, global_y: i32 }, // TODO delta
+    Wheel { delta: i32, x: i32, y: i32, global_x: i32, global_y: i32 },
 }

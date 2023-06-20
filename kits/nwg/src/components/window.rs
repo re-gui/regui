@@ -4,7 +4,7 @@ use std::{rc::Rc, cell::RefCell, ops::Deref};
 use native_windows_gui as nwg;
 use regui::{StateFunction, component::{GetFromCache, FunctionsCache}};
 
-use crate::{WithNwgControlHandle, NwgControlNode};
+use crate::{WithNwgControlHandle, NwgControlNode, WindowEvent};
 
 
 impl WithNwgControlHandle for nwg::Window {
@@ -25,14 +25,6 @@ impl From<Vec<NwgControlNode>> for WindowContent {
     }
 }
 
-pub enum WindowEvent {
-    CloseRequest,
-    Maximize,
-    Minimize,
-    Moved(i32, i32),
-    Resized(u32, u32),
-}
-
 pub struct Window {
     pub id: Option<i32>,
     pub parent_handle: Option<nwg::ControlHandle>,
@@ -44,7 +36,7 @@ pub struct Window {
     pub icon: Option<Rc<nwg::Icon>>,
     pub enabled: bool,
     pub content: WindowContent,
-    pub on_window_event: Rc<dyn Fn(WindowEvent)>,
+    pub on_window_event: Rc<dyn Fn(&WindowEvent)>,
     // TODO icon
     // TODO status bar icon
     // TODO status bar progress and notifications
@@ -153,7 +145,7 @@ impl WindowBuilder {
         self
     }
 
-    pub fn on_window_event(mut self, on_window_event: impl Fn(WindowEvent) + 'static) -> Self {
+    pub fn on_window_event(mut self, on_window_event: impl Fn(&WindowEvent) + 'static) -> Self {
         self.props.on_window_event = Rc::new(on_window_event);
         self
     }
@@ -166,7 +158,7 @@ impl WindowBuilder {
 pub struct WindowFunction {
     native: Rc<nwg::Window>,
     props: Option<Window>,
-    on_window_event_ref: Rc<RefCell<Rc<dyn Fn(WindowEvent)>>>,
+    on_window_event_ref: Rc<RefCell<Rc<dyn Fn(&WindowEvent)>>>,
     handler: nwg::EventHandler,
 }
 
@@ -275,7 +267,7 @@ impl StateFunction for WindowFunction {
                 };
                 if let Some(event) = event {
                     let on_window_event = on_window_event_ref.borrow().clone();
-                    (on_window_event)(event);
+                    (on_window_event)(&event);
                 }
             }
         });

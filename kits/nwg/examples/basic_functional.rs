@@ -1,11 +1,11 @@
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
 
 
 use std::{rc::Rc, ops::Deref};
 
 use native_windows_gui as nwg;
 use regui::{component::{LiveStateComponent, FunctionsCache, GetFromCache, EvalFromCache}, function_component::{State, FunctionComponent}, function_component};
-use regui_nwg::{NwgControlNode, components::{Window, WindowEvent, Button, Label, TextInput}, run_ui};
+use regui_nwg::{NwgControlNode, components::{Window, Button, Label, TextInput}, run_ui, WindowEvent};
 
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
@@ -24,8 +24,6 @@ impl GetFromCache for ExampleUi {
 function_component!(ExampleUi example_ui(()) -> ());
 
 fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
-    // TODO a hook to initialize the value only once. It shoud behave like use_state but should
-    // jsut return a non-modifiable value (maybe just an RC), not UseStateHandle
     let icon = state.use_state(|| {
         const LOGO_PNG: &[u8] = include_bytes!("logo.png");
         let icon = nwg::Icon::from_bin(LOGO_PNG).expect("Failed to load icon");
@@ -77,13 +75,13 @@ fn example_content(props: &i32, cache: &FunctionsCache, state: &mut State) -> (S
     if title.len() % 2 == 0 {
         v.push(Button::builder()
             .text(format!("{} % 2 = 0", title.len()))
-            .position(0, 75)
+            .position(0, 50)
             .get(cache)
         );
     }
     v.push(Button::builder()
         .text(format!("{} % 2 = 1", title.len()))
-        .position(100, 75)
+        .position(100, 50)
         .enabled(title.len() % 2 == 1)
         .get(cache)
     );

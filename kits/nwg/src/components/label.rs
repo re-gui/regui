@@ -93,7 +93,8 @@ impl StateFunction for Label {
                 let props = props.clone();
                 move |parent| build_nwg_label(parent, &props)
             }),
-            on_event: Rc::new(|_, _, _, _| {}),
+            on_native_event: Rc::new(|_, _, _, _| {}),
+            on_event: Rc::new(|_| {}), // TODO
         });
 
         (
@@ -109,6 +110,7 @@ impl StateFunction for Label {
         self.props = props;
         self.native.get_node()
     }
+    // TODO reuse_with
 }
 
 fn build_nwg_label(parent: &nwg::ControlHandle, props: &LabelProps) -> nwg::Label {

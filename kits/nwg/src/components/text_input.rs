@@ -141,7 +141,7 @@ impl StateFunction for TextInput {
                     label
                 }
             }),
-            on_event: Rc::new({
+            on_native_event: Rc::new({
                 let on_input_ref = on_input_ref.clone();
                 let on_user_input_ref = on_user_input_ref.clone();
                 let programmatic_setting = programmatic_setting.clone();
@@ -166,6 +166,7 @@ impl StateFunction for TextInput {
                     }
                 }
             }),
+            on_event: Rc::new(|_| {}), // TODO
         });
 
         (
@@ -217,4 +218,5 @@ impl StateFunction for TextInput {
         self.props = props;
         self.native.get_node()
     }
+    // TODO reuse_with
 }

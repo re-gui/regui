@@ -26,6 +26,7 @@ Legend:
 - :construction: : in progress
 - :white_check_mark: : done
 
+<!--
 TODO:
  - [ ] web, yew like
  - [ ] custom based on repaint
@@ -43,3 +44,4 @@ TODO:
 ## Comunity provided kits
 
 _Empty_
+-->

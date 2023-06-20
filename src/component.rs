@@ -273,7 +273,7 @@ pub trait EvalFromCache {
 
 pub struct LiveStateComponent<SC: Component> {
     state_manager: Rc<RefCell<StateManager<SC>>>,
-    components_cache: Rc<RefCell<FunctionsCache>>,
+    _components_cache: Rc<RefCell<FunctionsCache>>,
     out: Rc<RefCell<SC::Out>>,
     live_link: LiveLink,
 }
@@ -340,7 +340,7 @@ impl<SC: Component> StateFunction for LiveStateComponent<SC> {
             live_link.make_live_value(result),
             Self {
                 state_manager,
-                components_cache,
+                _components_cache: components_cache,
                 out,
                 live_link,
             }

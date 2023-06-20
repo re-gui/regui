@@ -44,6 +44,7 @@ fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
             }
         })
         .icon_opt(if title.len() % 2 == 0 { Some(icon.deref().clone()) } else { None })
+        .initial_size(300, 150)
         .build().get(cache);
 }
 

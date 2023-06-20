@@ -14,13 +14,6 @@ fn main() {
     run_ui::<FunctionComponent<ExampleUi>>(());
 }
 
-impl GetFromCache for ExampleUi {
-    type Out = ();
-    fn get(self, cache: &FunctionsCache) -> Self::Out {
-        cache.eval_live::<LiveStateComponent<FunctionComponent<ExampleUi>>, ()>(())
-    }
-}
-
 function_component!(ExampleUi example_ui(()) -> ());
 
 fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {

@@ -1,6 +1,6 @@
 use std::{rc::{Rc, Weak}, any::Any, cell::RefCell, collections::VecDeque};
 
-use crate::state_function::{StateFunctionProps, StateFunction, LiveValue, LiveLink, LiveValueEmitter};
+use crate::state_function::{StateFunction, LiveValue, LiveLink, LiveValueEmitter};
 
 pub struct StateManagerInner<State> {
     state: RefCell<State>,
@@ -180,32 +180,14 @@ impl FunctionsCache {
         emitter
     }
 
-    /// Same as [`eval`](FunctionsCache::eval) but unwraps the live value.
-    ///
-    /// This function will call [`eval`](FunctionsCache::eval) and unwrap the result.
-    /// The live value emitter will be consumed: the value changes can be listened using [`emitter`](FunctionsCache::emitter).
-    #[must_use]
-    pub fn live<Props: StateFunctionProps, T>(&self, props: Props) -> T
-    where
-        Props::AssociatedFunction: StateFunction<Output = LiveValue<T>>,
-    {
-        self.eval_live_state_function::<Props::AssociatedFunction, T>(props)
-    }
-
-    /// Evaluates a state function from the components.
-    #[must_use]
-    pub fn eval<Props: StateFunctionProps>(&self, props: Props) -> <Props::AssociatedFunction as StateFunction>::Output {
-        self.eval_state_function::<Props::AssociatedFunction>(props)
-    }
-
     // TODO get_if_new and get_if_changed
 
     #[must_use]
-    pub fn eval_live_state_function<SF, T>(&self, props: SF::Input) -> T
+    pub fn eval_live<SF, T>(&self, props: SF::Input) -> T
     where
         SF: StateFunction<Output = LiveValue<T>>,
     {
-        let (value, emitter) = self.eval_state_function::<SF>(props).into_tuple();
+        let (value, emitter) = self.eval::<SF>(props).into_tuple();
         emitter.listen({
             let live_link = self.live_link.clone();
             move || {
@@ -216,7 +198,7 @@ impl FunctionsCache {
     }
 
     #[must_use]
-    pub fn eval_state_function<SF: StateFunction>(&self, props: SF::Input) -> SF::Output {
+    pub fn eval<SF: StateFunction>(&self, props: SF::Input) -> SF::Output {
         let mut data = self.data.borrow_mut();
         let pos = data.functions_pos;
         let result = if pos < data.functions.len() {
@@ -275,6 +257,12 @@ pub trait Component: Sized + 'static { // TODO remove 'static
     fn on_message(&mut self, _message: Self::Message) {} // TODO maybe link avaliable here
     #[must_use]
     fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out;
+    // TODO reuse with component
+}
+
+pub trait EvalFromCache {
+    type Out;
+    fn eval(self, cache: &FunctionsCache) -> Self::Out;
 }
 
 pub struct LiveStateComponent<SC: Component> {

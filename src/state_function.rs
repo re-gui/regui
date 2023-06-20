@@ -120,19 +120,6 @@ impl LiveLink {
     }
 }
 
-
-
-
-/// Declares a univoque relationship <code>[StatefulFunction::Props] -> [StatefulFunction]</code>.
-///
-/// When a type implements this trait, it means that it has a corresponding [`StatefulFunction`] that can be built from its props.
-pub trait StateFunctionProps: Sized {
-    type AssociatedFunction: StateFunction<Input = Self>;
-    fn build(self) -> (<Self::AssociatedFunction as StateFunction>::Output, Self::AssociatedFunction) {
-        Self::AssociatedFunction::build(self)
-    }
-}
-
 //impl<T: Clone> Live<T> for T {
 //    fn current_value(&self) -> T {
 //        self.clone()

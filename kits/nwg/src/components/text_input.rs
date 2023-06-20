@@ -2,7 +2,7 @@
 use std::{rc::Rc, cell::RefCell};
 
 use native_windows_gui as nwg;
-use regui::{StateFunctionProps, StateFunction};
+use regui::{StateFunction, component::{FunctionsCache, EvalFromCache}};
 
 use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
@@ -13,7 +13,7 @@ impl WithNwgControlHandle for nwg::TextInput {
 }
 
 #[derive(Clone)]
-pub struct TextInput {
+pub struct TextInputProps {
     pub id: Option<i32>,
     pub text: String, // TODO cow
     pub position: Option<(i32, i32)>,
@@ -25,7 +25,7 @@ pub struct TextInput {
     // TODO font etc.
 }
 
-impl Default for TextInput {
+impl Default for TextInputProps {
     fn default() -> Self {
         Self {
             id: None,
@@ -39,20 +39,76 @@ impl Default for TextInput {
     }
 }
 
-impl StateFunctionProps for TextInput {
-    type AssociatedFunction = TextInputFunction;
+pub struct TextInputPropsBuilder {
+    props: TextInputProps,
 }
 
-pub struct TextInputFunction {
+impl TextInputPropsBuilder {
+    pub fn id(mut self, id: i32) -> Self {
+        self.props.id = Some(id);
+        self
+    }
+
+    pub fn text(mut self, text: impl Into<String>) -> Self {
+        self.props.text = text.into();
+        self
+    }
+
+    pub fn position(mut self, x: i32, y: i32) -> Self {
+        self.props.position = Some((x, y));
+        self
+    }
+
+    pub fn size(mut self, width: u32, height: u32) -> Self {
+        self.props.size = Some((width, height));
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.props.enabled = enabled;
+        self
+    }
+
+    pub fn on_input(mut self, on_input: impl Fn(&str) + 'static) -> Self {
+        self.props.on_input = Rc::new(on_input);
+        self
+    }
+
+    pub fn on_user_input(mut self, on_user_input: impl Fn(&str) + 'static) -> Self {
+        self.props.on_user_input = Rc::new(on_user_input);
+        self
+    }
+
+    pub fn build_props(self) -> TextInputProps {
+        self.props
+    }
+}
+
+impl EvalFromCache for TextInputPropsBuilder {
+    type Out = NwgControlNode;
+    fn eval(self, cache: &FunctionsCache) -> Self::Out {
+        cache.eval::<TextInput>(self.build_props())
+    }
+}
+
+pub struct TextInput {
     native: NativeCommonComponentComponent<nwg::TextInput>,
     on_input_ref: Rc<RefCell<Rc<dyn Fn(&str)>>>,
     on_user_input_ref: Rc<RefCell<Rc<dyn Fn(&str)>>>,
     programmatic_setting: Rc<RefCell<bool>>,
-    props: TextInput,
+    props: TextInputProps,
 }
 
-impl StateFunction for TextInputFunction {
-    type Input = TextInput;
+impl TextInput {
+    pub fn builder() -> TextInputPropsBuilder {
+        TextInputPropsBuilder {
+            props: TextInputProps::default(),
+        }
+    }
+}
+
+impl StateFunction for TextInput {
+    type Input = TextInputProps;
     type Output = NwgControlNode;
 
     fn build(props: Self::Input) -> (Self::Output, Self) {

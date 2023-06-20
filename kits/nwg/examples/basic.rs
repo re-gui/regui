@@ -4,32 +4,33 @@ use std::rc::Rc;
 
 
 use native_windows_gui as nwg;
-use regui::{component::{LiveStateComponent, Component, StateLink, FunctionsCache}, StateFunctionProps};
-use regui_nwg::{NwgControlNode, components::{Button, Label, TextInput, Window}};
+use regui::{component::{LiveStateComponent, Component, StateLink, FunctionsCache, EvalFromCache}, StateFunction};
+use regui_nwg::{NwgControlNode, components::{ButtonProps, LabelProps, TextInputProps, Window, WindowEvent, Button, Label, TextInput}};
 
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
     nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
 
-    //let (_out, _component) = MyWindowProps {}.build();
-    let (_out, _component) = MyUi.build();
+    //let (_out, _component) = LiveStateComponent::<UiState>::build(Ui);
+    //nwg::dispatch_thread_events();
 
+    run_ui::<UiState>(Ui);
+}
+
+fn run_ui<UiComponent: Component>(props: UiComponent::Props) {
+    let (_out, _component) = LiveStateComponent::<UiComponent>::build(props);
     nwg::dispatch_thread_events();
 }
 
-struct MyUi;
+struct Ui;
 
-impl StateFunctionProps for MyUi {
-    type AssociatedFunction = LiveStateComponent<MyUiState>;
-}
-
-struct MyUiState {
+struct UiState {
     title: String,
     icon: Rc<nwg::Icon>,
 }
 
-impl Component for MyUiState {
-    type Props = MyUi;
+impl Component for UiState {
+    type Props = Ui;
     type Out = ();
     type Message = String;
 
@@ -52,38 +53,44 @@ impl Component for MyUiState {
             move |text: &str| link.send_message(text.into())
         };
 
-        let _ = cache.eval(Window {
-            title: self.title.clone(),
-            content: cache.live(MyCompProps {
-                change_text: Rc::new(set_title),
-            }).into(),
-            on_close_request: Rc::new(|| nwg::stop_thread_dispatch()),
-            icon: if self.title.len() % 2 == 0 { Some(self.icon.clone()) } else { None },
-            ..Default::default()
-        });
+        let _ = Window::builder()
+            .title(&self.title)
+            .content(WindowContent {
+                change_text: Box::new(set_title),
+            }.eval(cache).into())
+            .on_window_event(|event| {
+                match event {
+                    WindowEvent::CloseRequest => nwg::stop_thread_dispatch(),
+                    _ => {}
+                }
+            })
+            .icon_opt(if self.title.len() % 2 == 0 { Some(self.icon.clone()) } else { None })
+            .build().eval(cache);
     }
 }
 
-struct MyCompProps {
-    change_text: Rc<dyn Fn(&str)>,
+struct WindowContent {
+    change_text: Box<dyn Fn(&str)>,
 }
 
-#[derive(Clone)]
-struct MyCompState {
+impl EvalFromCache for WindowContent {
+    type Out = Vec<NwgControlNode>;
+    fn eval(self, cache: &FunctionsCache) -> Self::Out {
+        cache.eval_live::<LiveStateComponent<WindowContentState>, Self::Out>(self)
+    }
+}
+
+struct WindowContentState {
     text: String,
-    change_text: Rc<dyn Fn(&str)>,
-}
-
-impl StateFunctionProps for MyCompProps {
-    type AssociatedFunction = LiveStateComponent<MyCompState>;
+    change_text: Box<dyn Fn(&str)>,
 }
 
 enum MyMessage {
     SetTitle(String),
 }
 
-impl Component for MyCompState {
-    type Props = MyCompProps;
+impl Component for WindowContentState {
+    type Props = WindowContent;
     type Out = Vec<NwgControlNode>;
     type Message = MyMessage;
     fn build(props: Self::Props) -> Self {
@@ -108,42 +115,39 @@ impl Component for MyCompState {
     fn view(&self, link: StateLink<Self>, cache: &FunctionsCache) -> Self::Out {
         //println!("view");
         let mut v = vec![
-            cache.eval(Label {
-                text: "window title:".into(),
-                position: Some((0, 0)),
-                size: Some((100, 25)),
-                ..Default::default()
-            }),
-            cache.eval(TextInput {
-                text: self.text.clone(),
-                position: Some((100, 0)),
-                size: Some((100, 25)),
-                on_user_input: Rc::new({
+            Label::builder()
+                .text("window title:")
+                .position(0, 0)
+                .size(100, 25)
+                .eval(cache),
+            TextInput::builder()
+                .text(&self.text)
+                .position(100, 0)
+                .size(150, 25)
+                .on_user_input({
                     let link = link.clone();
                     move |text| link.send_message(MyMessage::SetTitle(text.into()))
-                }),
-                ..Default::default()
-            }),
-            cache.eval(Button {
-                text: "CLOSE".into(),
-                position: Some((0, 25)),
-                on_click: Rc::new(|| nwg::stop_thread_dispatch()),
-                ..Default::default()
-            }),
+                })
+                .eval(cache),
+            Button::builder()
+                .text("CLOSE")
+                .position(0, 25)
+                .on_click(|| nwg::stop_thread_dispatch())
+                .eval(cache),
         ];
         if self.text.len() % 2 == 0 {
-            v.push(cache.eval(Button {
-                text: format!("{} % 2 = 0", self.text.len()),
-                position: Some((0, 75)),
-                ..Default::default()
-            }));
+            v.push(Button::builder()
+                .text(format!("{} % 2 = 0", self.text.len()))
+                .position(0, 75)
+                .eval(cache)
+            );
         }
-        v.push(cache.eval(Button {
-            text: format!("{} % 2 = 1", self.text.len()),
-            position: Some((100, 75)),
-            enabled: self.text.len() % 2 == 1,
-            ..Default::default()
-        }));
+        v.push(Button::builder()
+            .text(format!("{} % 2 = 1", self.text.len()))
+            .position(100, 75)
+            .enabled(self.text.len() % 2 == 1)
+            .eval(cache)
+        );
 
         v
     }

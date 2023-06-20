@@ -2,7 +2,7 @@
 use std::{rc::Rc, cell::RefCell};
 
 use native_windows_gui as nwg;
-use regui::{StateFunctionProps, StateFunction};
+use regui::{StateFunction, component::{FunctionsCache, EvalFromCache}};
 
 use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
 
@@ -13,7 +13,7 @@ impl WithNwgControlHandle for nwg::Button {
 }
 
 #[derive(Clone)]
-pub struct Button {
+pub struct ButtonProps {
     pub id: Option<i32>,
     pub text: String, // TODO cow
     pub position: Option<(i32, i32)>,
@@ -23,7 +23,7 @@ pub struct Button {
     // TODO font etc.
 }
 
-impl Default for Button {
+impl Default for ButtonProps {
     fn default() -> Self {
         Self {
             id: None,
@@ -36,18 +36,68 @@ impl Default for Button {
     }
 }
 
-impl StateFunctionProps for Button {
-    type AssociatedFunction = ButtonFunction;
+pub struct ButtonPropsBuilder {
+    props: ButtonProps,
 }
 
-pub struct ButtonFunction {
+impl ButtonPropsBuilder {
+    pub fn id(mut self, id: i32) -> Self {
+        self.props.id = Some(id);
+        self
+    }
+    pub fn text(mut self, text: impl Into<String>) -> Self {
+        self.props.text = text.into();
+        self
+    }
+    pub fn position(mut self, x: i32, y: i32) -> Self {
+        self.props.position = Some((x, y));
+        self
+    }
+
+    pub fn size(mut self, width: u32, height: u32) -> Self {
+        self.props.size = Some((width, height));
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.props.enabled = enabled;
+        self
+    }
+
+    pub fn on_click(mut self, on_click: impl Fn() + 'static) -> Self {
+        self.props.on_click = Rc::new(on_click);
+        self
+    }
+
+    pub fn build_props(self) -> ButtonProps {
+        self.props
+    }
+}
+
+impl EvalFromCache for ButtonPropsBuilder {
+    type Out = NwgControlNode;
+    fn eval(self, cache: &FunctionsCache) -> Self::Out {
+        cache.eval::<Button>(self.build_props())
+    }
+}
+
+pub struct Button {
     native: NativeCommonComponentComponent<nwg::Button>,
     on_click_ref: Rc<RefCell<Rc<dyn Fn()>>>,
-    props: Button,
+    props: ButtonProps,
 }
 
-impl StateFunction for ButtonFunction {
-    type Input = Button;
+impl Button {
+    pub fn builder() -> ButtonPropsBuilder {
+        ButtonPropsBuilder {
+            props: ButtonProps::default(),
+        }
+    }
+}
+
+
+impl StateFunction for Button {
+    type Input = ButtonProps;
     type Output = NwgControlNode;
 
     fn build(props: Self::Input) -> (Self::Output, Self) {

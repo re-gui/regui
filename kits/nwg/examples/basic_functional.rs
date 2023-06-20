@@ -35,7 +35,7 @@ fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
     // TODO a hook to initialize the value only once. It shoud behave like use_state but should
     // jsut return a non-modifiable value (maybe just an RC), not UseStateHandle
     let icon = state.use_state(|| {
-        const LOGO_PNG: &[u8] = include_bytes!("../../../logo.png");
+        const LOGO_PNG: &[u8] = include_bytes!("logo.png");
         let icon = nwg::Icon::from_bin(LOGO_PNG).expect("Failed to load icon");
         Rc::new(icon)
     });

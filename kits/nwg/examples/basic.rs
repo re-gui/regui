@@ -35,7 +35,7 @@ impl Component for UiState {
     type Message = String;
 
     fn build(_props: Self::Props) -> Self {
-        const LOGO_PNG: &[u8] = include_bytes!("../../../logo.png");
+        const LOGO_PNG: &[u8] = include_bytes!("logo.png");
         let icon = nwg::Icon::from_bin(LOGO_PNG).expect("Failed to load icon");
         Self {
             title: "title".into(),

@@ -4,11 +4,19 @@ use std::{rc::Rc, cell::RefCell};
 use native_windows_gui as nwg;
 use regui::{StateFunction, component::{FunctionsCache, GetFromCache}};
 
-use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
+use crate::{WithNwgControlHandle, NwgNode};
+
+use super::{NativeCommonComponent, NativeCommonComponentProps};
 
 impl WithNwgControlHandle for nwg::TextInput {
     fn nwg_control_handle(&self) -> &nwg::ControlHandle {
         &self.handle
+    }
+    fn position(&self) -> (i32, i32) {
+        self.position()
+    }
+    fn size(&self) -> (u32, u32) {
+        self.size()
     }
 }
 
@@ -85,14 +93,14 @@ impl TextInputPropsBuilder {
 }
 
 impl GetFromCache for TextInputPropsBuilder {
-    type Out = NwgControlNode;
+    type Out = NwgNode<nwg::ControlHandle>;
     fn get(self, cache: &FunctionsCache) -> Self::Out {
         cache.eval::<TextInput>(self.build_props())
     }
 }
 
 pub struct TextInput {
-    native: NativeCommonComponentComponent<nwg::TextInput>,
+    native: NativeCommonComponent<nwg::TextInput>,
     on_input_ref: Rc<RefCell<Rc<dyn Fn(&str)>>>,
     on_user_input_ref: Rc<RefCell<Rc<dyn Fn(&str)>>>,
     programmatic_setting: Rc<RefCell<bool>>,
@@ -109,13 +117,13 @@ impl TextInput {
 
 impl StateFunction for TextInput {
     type Input = TextInputProps;
-    type Output = NwgControlNode;
+    type Output = NwgNode<nwg::ControlHandle>;
 
     fn build(props: Self::Input) -> (Self::Output, Self) {
         let on_input_ref = Rc::new(RefCell::new(props.on_input.clone()));
         let on_user_input_ref = Rc::new(RefCell::new(props.on_user_input.clone()));
         let programmatic_setting = Rc::new(RefCell::new(false));
-        let (node, native) = NativeCommonComponentComponent::build(NativeCommonComponent {
+        let (node, native) = NativeCommonComponent::build(NativeCommonComponentProps {
             build: Rc::new({
                 let props = props.clone();
                 move |parent| {

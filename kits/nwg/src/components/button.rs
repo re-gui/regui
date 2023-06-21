@@ -4,11 +4,19 @@ use std::{rc::Rc, cell::RefCell};
 use native_windows_gui as nwg;
 use regui::{StateFunction, component::{FunctionsCache, GetFromCache}};
 
-use crate::{WithNwgControlHandle, NativeCommonComponentComponent, NwgControlNode, NativeCommonComponent};
+use crate::{WithNwgControlHandle, NwgNode};
+
+use super::{NativeCommonComponent, NativeCommonComponentProps};
 
 impl WithNwgControlHandle for nwg::Button {
     fn nwg_control_handle(&self) -> &nwg::ControlHandle {
         &self.handle
+    }
+    fn position(&self) -> (i32, i32) {
+        self.position()
+    }
+    fn size(&self) -> (u32, u32) {
+        self.size()
     }
 }
 
@@ -77,14 +85,14 @@ impl ButtonPropsBuilder {
 }
 
 impl GetFromCache for ButtonPropsBuilder {
-    type Out = NwgControlNode;
+    type Out = NwgNode<nwg::ControlHandle>;
     fn get(self, cache: &FunctionsCache) -> Self::Out {
         cache.eval::<Button>(self.build_props())
     }
 }
 
 pub struct Button {
-    native: NativeCommonComponentComponent<nwg::Button>,
+    native: NativeCommonComponent<nwg::Button>,
     on_click_ref: Rc<RefCell<Rc<dyn Fn()>>>,
     props: ButtonProps,
 }
@@ -100,11 +108,11 @@ impl Button {
 
 impl StateFunction for Button {
     type Input = ButtonProps;
-    type Output = NwgControlNode;
+    type Output = NwgNode<nwg::ControlHandle>;
 
     fn build(input: Self::Input) -> (Self::Output, Self) {
         let on_click_ref = Rc::new(RefCell::new(input.on_click.clone()));
-        let (node, native) = NativeCommonComponentComponent::build(NativeCommonComponent {
+        let (node, native) = NativeCommonComponent::build(NativeCommonComponentProps {
             build: Rc::new({
                 let props = input.clone();
                 move |parent| {

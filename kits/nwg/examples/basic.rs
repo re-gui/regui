@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use native_windows_gui as nwg;
 use regui::component::{LiveStateComponent, Component, StateLink, FunctionsCache, GetFromCache};
-use regui_nwg::{NwgControlNode, components::{Window, Button, Label, TextInput}, run_ui, WindowEvent};
+use regui_nwg::{NwgNode, components::{Window, Button, Label, TextInput}, run_ui, WindowEvent};
 
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
@@ -66,7 +66,7 @@ struct WindowContent {
 }
 
 impl GetFromCache for WindowContent {
-    type Out = Vec<NwgControlNode>;
+    type Out = Vec<NwgNode<nwg::ControlHandle>>;
     fn get(self, cache: &FunctionsCache) -> Self::Out {
         cache.eval_live::<LiveStateComponent<WindowContentState>, Self::Out>(self)
     }
@@ -83,7 +83,7 @@ enum MyMessage {
 
 impl Component for WindowContentState {
     type Props = WindowContent;
-    type Out = Vec<NwgControlNode>;
+    type Out = Vec<NwgNode<nwg::ControlHandle>>;
     type Message = MyMessage;
     fn build(props: Self::Props) -> Self {
         let title = "Hello world!";

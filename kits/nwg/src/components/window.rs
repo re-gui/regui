@@ -4,23 +4,29 @@ use std::{rc::Rc, cell::RefCell, ops::Deref};
 use native_windows_gui as nwg;
 use regui::{StateFunction, component::{GetFromCache, FunctionsCache}};
 
-use crate::{WithNwgControlHandle, NwgControlNode, WindowEvent};
+use crate::{WithNwgControlHandle, NwgNode, WindowEvent};
 
 
 impl WithNwgControlHandle for nwg::Window {
     fn nwg_control_handle(&self) -> &nwg::ControlHandle {
         &self.handle
     }
+    fn position(&self) -> (i32, i32) {
+        self.position()
+    }
+    fn size(&self) -> (u32, u32) {
+        self.size()
+    }
 }
 
 #[derive(Clone, PartialEq)]
 pub enum WindowContent {
     None,
-    Nodes(Vec<NwgControlNode>),
+    Nodes(Vec<NwgNode<nwg::ControlHandle>>),
 }
 
-impl From<Vec<NwgControlNode>> for WindowContent {
-    fn from(nodes: Vec<NwgControlNode>) -> Self {
+impl From<Vec<NwgNode<nwg::ControlHandle>>> for WindowContent {
+    fn from(nodes: Vec<NwgNode<nwg::ControlHandle>>) -> Self {
         Self::Nodes(nodes)
     }
 }
@@ -180,7 +186,7 @@ impl WindowFunction {
             }
             WindowContent::Nodes(nodes) => {
                 for node in nodes {
-                    let _ = node.borrow_mut().handle_from_parent(&self.native.handle);
+                    let _ = node.borrow_mut().from_parent(&self.native.handle);
                 }
             }
         }

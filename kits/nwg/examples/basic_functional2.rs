@@ -5,7 +5,7 @@ use std::{rc::Rc, ops::Deref};
 
 use native_windows_gui as nwg;
 use regui::{component::{LiveStateComponent, FunctionsCache, GetFromCache, EvalFromCache}, function_component::{State, FunctionComponent}, function_component};
-use regui_nwg::{NwgControlNode, components::{Window, Button, Label, TextInput, ExternCanvas}, run_ui, WindowEvent, ControlEvent};
+use regui_nwg::{NwgNode, components::{Window, Button, Label, TextInput, ExternCanvas}, run_ui, WindowEvent, ControlEvent};
 
 fn main() {
     nwg::init().expect("Failed to init Native Windows GUI");
@@ -41,9 +41,9 @@ fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
         .build().get(cache);
 }
 
-function_component!(ExampleContent example_content(i32) -> (String, Vec<NwgControlNode>));
+function_component!(ExampleContent example_content(i32) -> (String, Vec<NwgNode<nwg::ControlHandle>>));
 
-fn example_content(props: &i32, cache: &FunctionsCache, state: &mut State) -> (String, Vec<NwgControlNode>) {
+fn example_content(props: &i32, cache: &FunctionsCache, state: &mut State) -> (String, Vec<NwgNode<nwg::ControlHandle>>) {
     let title = state.use_state(|| props.to_string());
 
     let mut v = vec![

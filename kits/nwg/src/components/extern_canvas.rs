@@ -3,13 +3,21 @@ use std::{rc::Rc, cell::RefCell};
 use native_windows_gui as nwg;
 use regui::{component::{GetFromCache, FunctionsCache}, StateFunction};
 
-use crate::{WithNwgControlHandle, NwgControlNode, NativeCommonComponent, NativeCommonComponentComponent, ControlEvent};
+use crate::{WithNwgControlHandle, NwgNode, ControlEvent};
+
+use super::{NativeCommonComponent, NativeCommonComponentProps};
 
 
 
 impl WithNwgControlHandle for nwg::ExternCanvas {
     fn nwg_control_handle(&self) -> &nwg::ControlHandle {
         &self.handle
+    }
+    fn position(&self) -> (i32, i32) {
+        self.position()
+    }
+    fn size(&self) -> (u32, u32) {
+        self.size()
     }
 }
 
@@ -78,14 +86,14 @@ impl ExternCanvasPropsBuilder {
 }
 
 impl GetFromCache for ExternCanvasPropsBuilder {
-    type Out = NwgControlNode;
+    type Out = NwgNode<nwg::ControlHandle>;
     fn get(self, cache: &FunctionsCache) -> Self::Out {
         cache.eval::<ExternCanvas>(self.build_props())
     }
 }
 
 pub struct ExternCanvas {
-    native: NativeCommonComponentComponent<nwg::ExternCanvas>,
+    native: NativeCommonComponent<nwg::ExternCanvas>,
     on_event_ref: Rc<RefCell<Rc<dyn Fn(&ControlEvent)>>>,
     on_created_ref: Rc<RefCell<Rc<dyn Fn(&nwg::ControlHandle)>>>,
     props: ExternCanvasProps,
@@ -101,11 +109,11 @@ impl ExternCanvas {
 
 impl StateFunction for ExternCanvas {
     type Input = ExternCanvasProps;
-    type Output = NwgControlNode;
+    type Output = NwgNode<nwg::ControlHandle>;
     fn build(input: Self::Input) -> (Self::Output, Self) {
         let on_event_ref = Rc::new(RefCell::new(input.on_event.clone()));
         let on_created_ref = Rc::new(RefCell::new(input.on_created.clone()));
-        let (node, native) = NativeCommonComponentComponent::build(NativeCommonComponent {
+        let (node, native) = NativeCommonComponent::build(NativeCommonComponentProps {
             build: Rc::new({
                 let input = input.clone();
                 let on_created_ref = on_created_ref.clone();

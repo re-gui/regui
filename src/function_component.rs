@@ -17,7 +17,7 @@ use crate::component::{FunctionsCache, Component, StateLink};
 /// - `function_component!(priv MyComponent ...)` declares a private component
 /// - `function_component!(MyComponent ...)` also declares a private component
 #[macro_export]
-macro_rules! function_component {
+macro_rules! decl_function_component {
     (pub $name:ident $func_name:ident ($props:ty) -> $out:ty) => {
         pub struct $name;
         impl $crate::function_component::ComponentFunction for $name {
@@ -31,7 +31,7 @@ macro_rules! function_component {
             type Input = $props;
             type Out = $out;
             fn eval(cache: &FunctionsCache, input: Self::Input) -> Self::Out {
-                cache.eval_live::<LiveStateComponent<FunctionComponent<$name>>, $out>(input)
+                cache.eval_live::<$crate::component::LiveStateComponent<$crate::function_component::FunctionComponent<$name>>, $out>(input)
             }
         }
     };
@@ -48,12 +48,12 @@ macro_rules! function_component {
             type Input = $props;
             type Out = $out;
             fn eval(cache: &FunctionsCache, input: Self::Input) -> Self::Out {
-                cache.eval_live::<LiveStateComponent<FunctionComponent<$name>>, $out>(input)
+                cache.eval_live::<$crate::component::LiveStateComponent<$crate::function_component::FunctionComponent<$name>>, $out>(input)
             }
         }
     };
     ($name:ident $func_name:ident ($props:ty) -> $out:ty) => {
-        function_component!(priv $name $func_name ($props) -> $out);
+        decl_function_component!(priv $name $func_name ($props) -> $out);
     }
 }
 

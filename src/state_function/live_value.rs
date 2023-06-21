@@ -49,6 +49,7 @@ pub struct LiveLink {
     inner: Rc<RefCell<LiveInner>>,
 }
 
+#[derive(Clone)]
 pub struct LiveValueEmitter {
     inner: Rc<RefCell<LiveInner>>,
 }

@@ -6,23 +6,6 @@ use regui::StateFunction;
 
 use crate::{WithNwgControlHandle, ControlEvent, NwgNode, NwgNodeTrait};
 
-
-struct NCCData<Control: WithNwgControlHandle> {
-    parent_handle: nwg::ControlHandle,
-    handler: nwg::EventHandler,
-    component: Rc<Control>,
-}
-
-impl<Control: WithNwgControlHandle> Drop for NCCData<Control> {
-    fn drop(&mut self) {
-        // TODO remove from parent??
-
-        // NOTE: the handler has to be the first member, because it is dropped first.
-        // handler cannot be dropped after the control is dropped. `unbind_event_handler` panics if the control is dropped.
-        nwg::unbind_event_handler(&self.handler);
-    }
-}
-
 pub struct NativeCommonComponentProps<Control: WithNwgControlHandle> {
     pub build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
     pub on_native_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>,
@@ -141,5 +124,21 @@ impl<Control: WithNwgControlHandle> NwgNodeTrait for NativeCommonComponentNode<C
         };
 
         data.component.nwg_control_handle().clone()
+    }
+}
+
+struct NCCData<Control: WithNwgControlHandle> {
+    parent_handle: nwg::ControlHandle,
+    handler: nwg::EventHandler,
+    component: Rc<Control>,
+}
+
+impl<Control: WithNwgControlHandle> Drop for NCCData<Control> {
+    fn drop(&mut self) {
+        // TODO remove from parent??
+
+        // NOTE: the handler has to be the first member, because it is dropped first.
+        // handler cannot be dropped after the control is dropped. `unbind_event_handler` panics if the control is dropped.
+        nwg::unbind_event_handler(&self.handler);
     }
 }

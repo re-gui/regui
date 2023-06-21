@@ -1,13 +1,11 @@
 use std::{rc::Rc, cell::RefCell};
 
 use native_windows_gui as nwg;
-use regui::{component::{GetFromCache, FunctionsCache}, StateFunction};
+use regui::{component::{GetFromCache, FunctionsCache}, StateFunction, LiveValueEmitter};
 
 use crate::{WithNwgControlHandle, NwgNode, ControlEvent};
 
 use super::{NativeCommonComponent, NativeCommonComponentProps};
-
-
 
 impl WithNwgControlHandle for nwg::ExternCanvas {
     fn nwg_control_handle(&self) -> &nwg::ControlHandle {
@@ -28,7 +26,8 @@ pub struct ExternCanvasProps {
     pub size: Option<(u32, u32)>,
     pub enabled: bool,
     pub on_event: Rc<dyn Fn(&ControlEvent)>,
-    pub on_created: Rc<dyn Fn(&nwg::ControlHandle)>,
+    pub on_created: Rc<dyn Fn(&nwg::ExternCanvas)>,
+    pub update_emitter: Option<LiveValueEmitter>, // TODO use update emitter
     // TODO ...
 }
 
@@ -41,6 +40,7 @@ impl Default for ExternCanvasProps {
             enabled: true,
             on_event: Rc::new(|_| {}),
             on_created: Rc::new(|_| {}),
+            update_emitter: None,
         }
     }
 }
@@ -75,8 +75,13 @@ impl ExternCanvasPropsBuilder {
         self
     }
 
-    pub fn on_created(mut self, on_created: impl Fn(&nwg::ControlHandle) + 'static) -> Self {
+    pub fn on_created(mut self, on_created: impl Fn(&nwg::ExternCanvas) + 'static) -> Self {
         self.props.on_created = Rc::new(on_created);
+        self
+    }
+
+    pub fn update_emitter(mut self, update_emitter: LiveValueEmitter) -> Self {
+        self.props.update_emitter = Some(update_emitter);
         self
     }
 
@@ -95,7 +100,7 @@ impl GetFromCache for ExternCanvasPropsBuilder {
 pub struct ExternCanvas {
     native: NativeCommonComponent<nwg::ExternCanvas>,
     on_event_ref: Rc<RefCell<Rc<dyn Fn(&ControlEvent)>>>,
-    on_created_ref: Rc<RefCell<Rc<dyn Fn(&nwg::ControlHandle)>>>,
+    on_created_ref: Rc<RefCell<Rc<dyn Fn(&nwg::ExternCanvas)>>>,
     props: ExternCanvasProps,
 }
 
@@ -120,7 +125,7 @@ impl StateFunction for ExternCanvas {
                 move |parent| {
                     let canvas = build_nwg_canvas(parent, &input);
                     let on_created = on_created_ref.borrow().clone();
-                    on_created(&canvas.handle);
+                    on_created(&canvas);
                     canvas
                 }
             }),

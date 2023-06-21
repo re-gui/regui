@@ -16,6 +16,10 @@ mod node; pub use node::*;
 /// A [`native_windows_gui`] [Common Control](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)
 pub trait WithNwgControlHandle: 'static {
     fn nwg_control_handle(&self) -> &nwg::ControlHandle;
+
+    // TODO the trait name is not very good for the following methods
+    // may be they should be moved to a separate trait
+
     fn position(&self) -> (i32, i32);
     fn size(&self) -> (u32, u32);
 }

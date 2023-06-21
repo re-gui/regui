@@ -4,7 +4,7 @@
 use std::{rc::Rc, ops::Deref};
 
 use native_windows_gui as nwg;
-use regui::{component::{LiveStateComponent, FunctionsCache, GetFromCache, EvalFromCache}, function_component::{State, FunctionComponent}, function_component};
+use regui::{component::{LiveStateComponent, FunctionsCache, GetFromCache, EvalFromCache}, function_component::{State, FunctionComponent}, decl_function_component};
 use regui_nwg::{NwgNode, components::{Window, Button, Label, TextInput}, run_ui, WindowEvent};
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
     run_ui::<FunctionComponent<ExampleUi>>(());
 }
 
-function_component!(ExampleUi example_ui(()) -> ());
+decl_function_component!(ExampleUi example_ui(()) -> ());
 
 fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
     let icon = state.use_state(|| {
@@ -39,7 +39,7 @@ fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
         .build().get(cache);
 }
 
-function_component!(ExampleContent example_content(i32) -> (String, Vec<NwgNode<nwg::ControlHandle>>));
+decl_function_component!(ExampleContent example_content(i32) -> (String, Vec<NwgNode<nwg::ControlHandle>>));
 
 fn example_content(props: &i32, cache: &FunctionsCache, state: &mut State) -> (String, Vec<NwgNode<nwg::ControlHandle>>) {
     let title = state.use_state(|| props.to_string());

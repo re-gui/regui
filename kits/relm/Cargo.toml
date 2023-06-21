@@ -1,0 +1,10 @@
+[package]
+name = "regui-relm"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+gtk = "^0.16.0"
+relm = "^0.24.0"
+relm-derive = "^0.24.0"

@@ -25,5 +25,6 @@ edition = "2021"
 
 [workspace]
 members = [
-    "kits/nwg"
+    "kits/nwg",
+    #"kits/relm"
 ]

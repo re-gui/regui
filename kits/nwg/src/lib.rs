@@ -1,5 +1,5 @@
 
-use std::{rc::Rc, cell::RefCell, ops::Deref};
+use std::{rc::Rc, cell::{RefCell, Cell}, ops::Deref};
 
 use native_windows_gui as nwg;
 
@@ -13,10 +13,6 @@ pub fn run_ui<UiComponent: Component>(props: UiComponent::Props) {
     let (_out, _component) = LiveStateComponent::<UiComponent>::build(props);
     nwg::dispatch_thread_events();
 }
-
-//pub fn run_ui_functional<FC: FCFunction>(props: FC::Props) {
-//    run_ui::<FunctionalComponent<FC>>(props);
-//}
 
 /// A [`native_windows_gui`] [Common Control](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)
 pub trait WithNwgControlHandle: 'static {
@@ -40,10 +36,7 @@ impl<Control: WithNwgControlHandle> Drop for NCCData<Control> {
 }
 
 pub struct NativeCommonComponent<Control: WithNwgControlHandle> {
-    //parent_window: nwg::ControlHandle,
-    //build: Callback<dyn Fn(nwg::ControlHandle) -> Control>,
     pub build: Rc<dyn Fn(&nwg::ControlHandle) -> Control>,
-    //on_event: Option<Callback<dyn Fn(&nwg::Event, nwg::EventData, nwg::ControlHandle)>>,
     pub on_native_event: Rc<dyn Fn(&nwg::Event, &nwg::EventData, &nwg::ControlHandle, &Control)>,
     pub on_event: Rc<dyn Fn(&ControlEvent)>,
 }

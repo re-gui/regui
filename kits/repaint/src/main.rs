@@ -1,17 +1,17 @@
-use std::{rc::{Rc, Weak}, any::Any, cell::RefCell, fs::File, io::Write, path::Display, future::Future, task, collections::BinaryHeap, cmp::Reverse, ops::Deref};
-
-use std::pin::Pin;
-
-use regui::function_component::ComponentFunction;
-use regui_repaint::{css::CssNamedColors, Widget, SPainter, TaffyContext, windowing::{windowing_loop, SkiaWindow, ReWindow, ReLoop, BasicSkiaWindow}, widgets::{self, Frame}};
-use repaint::{nalgebra::Vector2, Canvas, BasicPainter, Color, base::pen::Pen, methods::PaintStyle};
-use repaint_with_skia_safe::{SkiaPainter, skia_safe::Surface, SkiaCanvas};
-use taffy::{tree::{Layout, NodeId}, Taffy, prelude::{Size, Rect}, style::{Dimension, AvailableSpace, LengthPercentage, LengthPercentageAuto, FlexDirection, Position}};
+use std::{rc::{Rc}, cell::RefCell, collections::BinaryHeap, cmp::Reverse};
 
 
-use repaint_with_skia_safe::skia_safe;
 
-use regui_repaint::*;
+
+use regui_repaint::{Widget, TaffyContext, windowing::{ReLoop, BasicSkiaWindow}, widgets::{Frame}};
+use repaint::{nalgebra::Vector2, BasicPainter, Color};
+
+use taffy::{tree::{Layout}, prelude::{Size}, style::{AvailableSpace}};
+
+
+
+
+
 use winit::{event::WindowEvent, event_loop::ControlFlow};
 
 struct WidgetTree {
@@ -21,7 +21,7 @@ struct WidgetTree {
 }
 
 impl PartialEq for WidgetTree {
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(&self, _other: &Self) -> bool {
         false
     }
 }
@@ -47,15 +47,15 @@ fn compute_paint_tree_inner(
     last_positioned: &Option<&mut WidgetTree>,
 ) -> Option<WidgetTree> {
 
-    let style = taffy.get_style(wg.borrow().box_layout_leaf());
+    let _style = taffy.get_style(wg.borrow().box_layout_leaf());
 
     // TODO maybe incorrect
     //let poisitioned = style.position != Position::Relative;
-    let poisitioned = true; // everything other than static https://developer.mozilla.org/en-US/docs/Web/CSS/position#types_of_positioning but taffy doesn't support static
+    let _poisitioned = true; // everything other than static https://developer.mozilla.org/en-US/docs/Web/CSS/position#types_of_positioning but taffy doesn't support static
 
     let layout = taffy.get_layout(wg.borrow().box_layout_leaf());
 
-    let mut tree = WidgetTree {
+    let tree = WidgetTree {
         widget: wg.clone(),
         layout,
         children: RefCell::new(BinaryHeap::new()),
@@ -188,7 +188,7 @@ fn main() {
 
     //let window = BasicSkiaWindow::new(&mut re_loop);
     //let window = BasicSkiaWindow::new(&mut re_loop);
-    let w = W::new(
+    let _w = W::new(
         &mut re_loop,
         |taffy| Frame::new(taffy)
     );

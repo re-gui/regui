@@ -10,7 +10,7 @@ use taffy::tree::NodeId;
 use crate::{Widget, SPainter, TaffyContext};
 
 use crate::TaffyStyle;
-use crate::TaffyDisplay;
+
 use crate::TaffySize;
 use crate::TaffyRect;
 
@@ -78,7 +78,7 @@ impl Widget for Frame {
         size: Vector2<f64>,
         _resources: Option<Box<dyn Any>>
     ) -> Option<Box<dyn Any>> {
-        let mut pen: Pen<Color> = Color::RED.into();
+        let pen: Pen<Color> = Color::RED.into();
         //pen.paint.anti_alias = false;
         let style = PaintStyle::Stroke(pen);
         painter.rect((0.0, 0.0, size.x, size.y).into(), style);

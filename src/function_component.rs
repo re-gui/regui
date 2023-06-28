@@ -1,4 +1,4 @@
-use std::{rc::Rc, ops::Deref, fmt::Debug, any::Any, cell::RefCell};
+use std::{rc::Rc, fmt::Debug, any::Any, cell::RefCell, ops::Deref};
 
 use crate::component::{FunctionsCache, Component, StateLink};
 
@@ -23,7 +23,7 @@ macro_rules! decl_function_component {
         impl $crate::function_component::ComponentFunction for $name {
             type Props = $props;
             type Out = $out;
-            fn call<'a>(props: &Self::Props, cache: &$crate::component::FunctionsCache, state: &mut State<'a>) -> Self::Out {
+            fn call<'a>(props: &Self::Props, cache: &$crate::component::FunctionsCache, state: &mut $crate::function_component::State<'a>) -> Self::Out {
                 $func_name(props, cache, state)
             }
         }
@@ -124,25 +124,24 @@ impl<'a> State<'a> {
         // TODO this implementation is not very generic
         // implement the generic hooks and use_reducer, implement use_state in terms of use_reducer and hooks
 
-        let (value, value_ref) = if self.current_pos < self.manager.state_values.len() {
-            let value_ref = self.manager.state_values[self.current_pos].clone().downcast::<RefCell<Rc<V>>>().unwrap();
+        let value = if self.current_pos < self.manager.state_values.len() {
+            let value = self.manager.state_values[self.current_pos].clone().downcast::<RefCell<V>>().unwrap();
             self.current_pos += 1;
-            let value = value_ref.borrow().clone();
-            (value, value_ref)
+            value
         } else {
-            let value = Rc::new(init());
-            let value_ref = Rc::new(RefCell::new(value.clone()));
-            self.manager.state_values.push(value_ref.clone());
+            let value = Rc::new(RefCell::new(init()));
+            self.manager.state_values.push(value.clone());
             self.current_pos = self.manager.state_values.len();
-            (value, value_ref)
+            value
         };
 
         UseStateHandle {
-            value,
+            value: value.clone(),
             setter: Rc::new({
                 let tell_update = self.tell_update.clone();
+                let value_ref = value.clone();
                 move |value| {
-                    *value_ref.borrow_mut() = Rc::new(value);
+                    *value_ref.borrow_mut() = value;
                     tell_update();
                 }
             }),
@@ -158,7 +157,7 @@ impl<'a> Drop for State<'a> {
 
 #[derive(Clone)]
 pub struct UseStateHandle<V> {
-    value: Rc<V>,
+    value: Rc<RefCell<V>>,
     setter: Rc<dyn Fn(V)>,
 }
 
@@ -168,16 +167,16 @@ impl<V: Debug> Debug for UseStateHandle<V> {
     }
 }
 
-impl<V> UseStateHandle<V> {
+impl<V: Clone> UseStateHandle<V> {
     pub fn set(&self, value: V) {
         (self.setter)(value);
     }
-}
-
-impl<V> Deref for UseStateHandle<V> {
-    type Target = V;
-    fn deref(&self) -> &Self::Target {
-        &self.value
+    pub fn get(&self) -> V {
+        self.value.borrow().clone()
+    }
+    pub fn on_value<Out>(&self, callback: impl FnOnce(&V) -> Out) -> Out {
+        let value = self.value.borrow();
+        callback(value.deref())
     }
 }
 

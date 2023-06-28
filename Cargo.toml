@@ -2,8 +2,6 @@
 name = "regui"
 version = "0.1.0"
 edition = "2021"
-
-[dependencies]
 #plotters = "0.3.4"
 #glazier = { git = "https://github.com/linebender/glazier", version = "0.7.0" }
 #kurbo = "0.9.4"
@@ -25,6 +23,18 @@ edition = "2021"
 
 [workspace]
 members = [
-    "kits/nwg",
+    #"kits/nwg",
     #"kits/relm"
+    #"kits/qt-widgets",
+    "kits/repaint",
 ]
+
+[dependencies]
+
+
+#[profile.release]
+#strip = true
+#opt-level = "z"
+#lto = true
+#codegen-units = 1
+#panic = "abort"

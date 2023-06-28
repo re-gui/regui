@@ -1,0 +1,3 @@
+# `regui-nwg`
+
+> :warning: this project is currently suspended since issue [gfx-rs/wgpu#3884](https://github.com/gfx-rs/wgpu/issues/3884) makes it difficoult to use wgpu in a `native-windows-gui` application. Using the library in this way was the inital goal of this project, so I'm waiting for an elegant fix before continuing the development. In the meantime, I'm working on a [`winit-repaint`](../repaint/)

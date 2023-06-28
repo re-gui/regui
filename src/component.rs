@@ -1,6 +1,6 @@
 use std::{rc::{Rc, Weak}, any::Any, cell::RefCell, collections::VecDeque};
 
-use crate::state_function::{StateFunction, LiveValue, LiveLink, LiveValueEmitter};
+use crate::{state_function::StateFunction, LiveValue, LiveLink, LiveValueEmitter};
 
 pub struct StateManagerInner<State> {
     state: RefCell<State>,

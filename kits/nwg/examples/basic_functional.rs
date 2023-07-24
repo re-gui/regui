@@ -1,10 +1,10 @@
 #![windows_subsystem = "windows"]
 
 
-use std::{rc::Rc, ops::Deref};
+use std::rc::Rc;
 
 use native_windows_gui as nwg;
-use regui::{component::{LiveStateComponent, FunctionsCache, GetFromCache, EvalFromCache}, function_component::{State, FunctionComponent}, decl_function_component};
+use regui::{component::{FunctionsCache, GetFromCache, EvalFromCache}, function_component::{State, FunctionComponent}, decl_function_component};
 use regui_nwg::{NwgNode, components::{Window, Button, Label, TextInput}, run_ui, WindowEvent};
 
 fn main() {

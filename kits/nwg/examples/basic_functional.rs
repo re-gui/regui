@@ -25,7 +25,7 @@ fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
 
     let (title, content) = ExampleContent::eval(cache, 42);
 
-    let _ = Window::builder()
+    let _window = Window::builder()
         .title(&title)
         .content(content.into())
         .on_window_event(|event| {
@@ -36,7 +36,8 @@ fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
         })
         .icon_opt(if title.len() % 2 == 0 { Some(icon.get().clone()) } else { None })
         .initial_size(300, 150)
-        .build().get(cache);
+        .build()
+        .get(cache);
 }
 
 decl_function_component!(ExampleContent example_content(i32) -> (String, Vec<NwgNode<nwg::ControlHandle>>));

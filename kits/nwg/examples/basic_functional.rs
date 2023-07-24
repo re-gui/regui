@@ -34,7 +34,7 @@ fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
                 _ => {}
             }
         })
-        .icon_opt(if title.len() % 2 == 0 { Some(icon.deref().clone()) } else { None })
+        .icon_opt(if title.len() % 2 == 0 { Some(icon.get().clone()) } else { None })
         .initial_size(300, 150)
         .build().get(cache);
 }
@@ -51,7 +51,7 @@ fn example_content(props: &i32, cache: &FunctionsCache, state: &mut State) -> (S
             .size(100, 25)
             .get(cache),
         TextInput::builder()
-            .text(&*title)
+            .text(title.get())
             .position(100, 0)
             .size(150, 25)
             .on_user_input({
@@ -61,22 +61,22 @@ fn example_content(props: &i32, cache: &FunctionsCache, state: &mut State) -> (S
             .get(cache),
         Button::builder()
             .text("CLOSE")
-            .position(title.len() as i32 * 5, 25)
+            .position(title.get().len() as i32 * 5, 25)
             .on_click(|| nwg::stop_thread_dispatch())
             .get(cache),
     ];
-    if title.len() % 2 == 0 {
+    if title.get().len() % 2 == 0 {
         v.push(Button::builder()
-            .text(format!("{} % 2 = 0", title.len()))
+            .text(format!("{} % 2 = 0", title.get().len()))
             .position(0, 50)
             .get(cache)
         );
     }
     v.push(Button::builder()
-        .text(format!("{} % 2 = 1", title.len()))
+        .text(format!("{} % 2 = 1", title.get().len()))
         .position(100, 50)
-        .enabled(title.len() % 2 == 1)
+        .enabled(title.get().len() % 2 == 1)
         .get(cache)
     );
-    (title.to_string(), v)
+    (title.get().to_string(), v)
 }

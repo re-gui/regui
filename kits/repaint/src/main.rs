@@ -1,196 +1,72 @@
+//#![windows_subsystem = "windows"]
+
 use std::{rc::{Rc}, cell::RefCell, collections::BinaryHeap, cmp::Reverse};
 
 
 
 
-use regui_repaint::{Widget, TaffyContext, windowing::{ReLoop, BasicSkiaWindow}, widgets::{Frame}};
-use repaint::{nalgebra::Vector2, BasicPainter, Color};
+use regui_repaint::{Widget, TaffyContext, windowing::{ReLoop, SkiaWindow, WidgetWindow}, widgets::{Frame}, SPainter};
+use repaint::{nalgebra::{Vector2, Transform2}, BasicPainter, Color, base::transform::Transform2d};
 
-use taffy::{tree::{Layout}, prelude::{Size}, style::{AvailableSpace}};
-
-
-
-
+use taffy::{tree::{Layout}, prelude::{Size}, style::{AvailableSpace, Dimension, Position}};
 
 use winit::{event::WindowEvent, event_loop::ControlFlow};
 
-struct WidgetTree {
-    widget: Rc<RefCell<dyn Widget>>,
-    layout: Layout,
-    children: RefCell<BinaryHeap<Reverse<WidgetTree>>>,
-}
 
-impl PartialEq for WidgetTree {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
-}
-
-impl PartialOrd for WidgetTree {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.layout.order.partial_cmp(&other.layout.order)
-    }
-}
-
-impl Eq for WidgetTree {
-}
-
-impl Ord for WidgetTree {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.layout.order.cmp(&other.layout.order)
-    }
-}
-
-fn compute_paint_tree_inner(
-    taffy: &TaffyContext,
-    wg: Rc<RefCell<dyn Widget>>,
-    last_positioned: &Option<&mut WidgetTree>,
-) -> Option<WidgetTree> {
-
-    let _style = taffy.get_style(wg.borrow().box_layout_leaf());
-
-    // TODO maybe incorrect
-    //let poisitioned = style.position != Position::Relative;
-    let _poisitioned = true; // everything other than static https://developer.mozilla.org/en-US/docs/Web/CSS/position#types_of_positioning but taffy doesn't support static
-
-    let layout = taffy.get_layout(wg.borrow().box_layout_leaf());
-
-    let tree = WidgetTree {
-        widget: wg.clone(),
-        layout,
-        children: RefCell::new(BinaryHeap::new()),
-    };
-
-    let children = {
-        let wg = wg.borrow();
-        let mut children = Vec::new();
-        for child in wg.children().iter() {
-            let child = compute_paint_tree_inner(
-                taffy,
-                child.clone(),
-                    last_positioned
-            );
-            if let Some(child) = child {
-                children.push(child);
-            }
-        }
-        children
-    };
-
-    for child in children {
-        tree.children.borrow_mut().push(Reverse(child));
-    }
-
-    if let Some(last_positioned) = last_positioned {
-        last_positioned.children.borrow_mut().push(Reverse(tree));
-        None
-    } else {
-        Some(tree)
-    }
-}
-
-fn compute_paint_tree(taffy: &TaffyContext, root: Rc<RefCell<dyn Widget>>, available_space: Size<AvailableSpace>) -> WidgetTree {
-    taffy.compute_layout(root.borrow().box_layout_leaf(), available_space);
-
-    compute_paint_tree_inner(
-        taffy,
-        root,
-        &None,
-    ).unwrap()
-}
-
-struct W {
-    inner: Rc<RefCell<BasicSkiaWindow>>,
-    root: Rc<RefCell<dyn Widget>>,
-    taffy: TaffyContext,
-    paint_tree: Option<WidgetTree>,
-}
-
-impl W {
-    fn new<Wg: Widget>(
-        re_loop: &mut ReLoop,
-        root: impl FnOnce(TaffyContext) -> Wg,
-    ) -> Self {
-        let inner = BasicSkiaWindow::new(re_loop);
-
-        let taffy = TaffyContext::new({
-            let inner = Rc::downgrade(&inner);
-            move || {
-                if let Some(inner) = inner.upgrade() {
-                    inner.borrow_mut().request_redraw();
-                }
-            }
-        });
-
-        let root: Rc<RefCell<dyn Widget>> = Rc::new(RefCell::new(root(taffy.clone())));
-
-        inner.borrow_mut().on_event({
-            move |event| {
-                match event {
-                    WindowEvent::CloseRequested => Some(ControlFlow::Exit),
-                    _ => None,
-                }
-            }
-        });
-
-        inner.borrow_mut().on_paint({
-            let root = root.clone();
-            let taffy = taffy.clone();
-            move |painter, size| {
-                painter.clear(Color::WHITE.into());
-
-                let w = size.x as f32;
-                let h = size.y as f32;
-
-                taffy.compute_layout(
-                    root.borrow().box_layout_leaf(),
-                    Size {
-                        height: AvailableSpace::Definite(h),
-                        width: AvailableSpace::Definite(w)
-                    });
-    
-                let l = taffy.layout(root.borrow().box_layout_leaf());
-    
-                painter.with_save(|mut painter| {
-                    painter.translate(Vector2::<f64>::new(
-                        l.location.x as f64, l.location.y as f64)
-                    ).unwrap();
-                    root.borrow().paint(&mut painter, Vector2::<f64>::new(l.size.width as f64, l.size.height as f64), None);
-                });
-            }
-        });
-
-        Self {
-            inner,
-            root,
-            taffy,
-            paint_tree: None,
-        }
-    }
-
-    fn paint_tree(&mut self, size: Size<AvailableSpace>) -> &WidgetTree {
-        let to_recompute = self.paint_tree.is_none() || self.taffy.update_requested();
-
-        if to_recompute {
-            self.paint_tree = Some(compute_paint_tree(
-                &self.taffy,
-                self.root.clone(),
-                size,
-            ));
-        }
-
-        self.paint_tree.as_ref().unwrap()
-    }
-}
 
 fn main() {
     let mut re_loop = ReLoop::new();
 
     //let window = BasicSkiaWindow::new(&mut re_loop);
     //let window = BasicSkiaWindow::new(&mut re_loop);
-    let _w = W::new(
+    let _w = WidgetWindow::new(
         &mut re_loop,
-        |taffy| Frame::new(taffy)
+        |taffy| {
+            let mut root = Frame::new(taffy.clone());
+            root.modify_style(|style| {
+                //style.taffy_style.display = taffy::style::Display::Flex;
+                //style.taffy_style.flex_direction = taffy::style::FlexDirection::Column;
+                style.taffy_style.size = Size {
+                    width: Dimension::Percent(0.5),
+                    height: Dimension::Percent(0.5),
+                };
+                style.taffy_style.min_size = Size {
+                    width: Dimension::Length(100.0),
+                    height: Dimension::Length(100.0),
+                };
+            });
+
+            let mut child = Frame::new(taffy.clone());
+            child.modify_style(|style| {
+                style.taffy_style.size = Size {
+                    width: Dimension::Length(100.0),
+                    height: Dimension::Length(100.0),
+                }
+            });
+            root.add_child(child);
+            let mut child = Frame::new(taffy.clone());
+            child.modify_style(|style| {
+                style.taffy_style.size = Size {
+                    width: Dimension::Length(100.0),
+                    height: Dimension::Length(100.0)
+                };
+                style.taffy_style.position = Position::Absolute;
+                style.taffy_style.inset = taffy::geometry::Rect {
+                    left: taffy::style::LengthPercentageAuto::Length(50.0),
+                    right: taffy::style::LengthPercentageAuto::Auto,
+                    top: taffy::style::LengthPercentageAuto::Percent(0.25),
+                    bottom: taffy::style::LengthPercentageAuto::Auto,
+                }
+            });
+            root.add_child(child);
+
+            let mut child = Frame::new(taffy.clone());
+            let mut child2 = Frame::new(taffy.clone());
+            child.add_child(child2);
+            root.add_child(child);
+
+            root
+        }
     );
 
     re_loop.run();

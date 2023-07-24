@@ -15,18 +15,18 @@ use glutin::config::Config as GlutinConfig;
 use glutin::surface::Surface as GlutinSurface;
 use glutin::context::PossiblyCurrentContext;
 
-mod renderer;
+//mod renderer;
 
 use crate::SPainter;
 
 use super::{ReLoop, ReWindow};
 
-pub struct SkiaWindow {
+pub struct BasicSkiaWindow {
     env: SkiaGlEnv,
     to_repaint: bool,
 }
 
-impl SkiaWindow {
+impl BasicSkiaWindow {
     pub fn new_no_register(re_loop: &mut ReLoop) -> Self {
         let (window, gl_config) = create_gl_window(
             WindowBuilder::new()
@@ -59,8 +59,11 @@ impl SkiaWindow {
         re_loop.register_window(s)
     }
 
-    pub fn request_redraw(&mut self) {
+    pub fn request_repaint(&mut self) {
         self.to_repaint = true;
+        //self.on_instance(&|window| {
+        //    window.request_redraw();
+        //});
         self.instance().request_redraw();
     }
 
@@ -91,28 +94,28 @@ impl SkiaWindow {
     }
 }
 
-impl ReWindow for SkiaWindow {
+impl ReWindow for BasicSkiaWindow {
     fn instance(&self) -> &WinitWindow {
         &self.env.window
     }
 
-    fn handle_event(&mut self, event: &WindowEvent) -> Option<ControlFlow> {
+    fn handle_event(&mut self, event: &WindowEvent, control_flow: &mut ControlFlow) {
         match event {
             WindowEvent::Resized(physical_size) => {
                 self.resized(physical_size);
             },
             _ => {}
         }
-        None
     }
 
-    fn main_events_cleared(&mut self) {
+    fn main_events_cleared(&mut self, control_flow: &mut ControlFlow) {
         if self.to_repaint {
             self.instance().request_redraw();
+            control_flow.set_poll();
         }
     }
 
-    fn draw(&mut self) {
+    fn draw(&mut self, control_flow: &mut ControlFlow) {
         self.to_repaint = false;
     }
 }

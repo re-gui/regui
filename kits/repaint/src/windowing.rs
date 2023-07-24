@@ -4,6 +4,7 @@ use winit::{event_loop::{EventLoop, ControlFlow}, window::{Window as WinitWindow
 
 mod skia; pub use skia::*;
 mod basic_window; pub use basic_window::*;
+mod widget_window; pub use widget_window::*;
 
 pub struct ReLoop {
     event_loop: EventLoop<()>,
@@ -32,10 +33,7 @@ impl ReLoop {
                     let window = self.windows.get(&window_id);
                     if let Some(window) = window {
                         if let Some(window) = window.upgrade() {
-                            let r = window.borrow_mut().handle_event(&event);
-                            if let Some(r) = r {
-                                *control_flow = r;
-                            }
+                            window.borrow_mut().handle_event(&event, control_flow);
                         }
                     };
                 },
@@ -43,14 +41,14 @@ impl ReLoop {
                     let window = self.windows.get(&window_id);
                     if let Some(window) = window {
                         if let Some(window) = window.upgrade() {
-                            window.borrow_mut().draw();
+                            window.borrow_mut().draw(control_flow);
                         }
                     };
                 }
                 Event::RedrawEventsCleared => {
                     for (_id, window) in self.windows.iter() {
                         if let Some(window) = window.upgrade() {
-                            window.borrow_mut().main_events_cleared();
+                            window.borrow_mut().main_events_cleared(control_flow);
                         }
                     }
                 }
@@ -73,15 +71,33 @@ pub fn windowing_loop() -> i32 {
 
     let mut re_loop = ReLoop::new();
 
-    let _skia_window = SkiaWindow::new(&mut re_loop);
+    let _skia_window = BasicSkiaWindow::new(&mut re_loop);
 
     re_loop.run()
 }
 
 pub trait ReWindow: 'static {
     fn instance(&self) -> &WinitWindow;
-    fn handle_event(&mut self, event: &WindowEvent) -> Option<ControlFlow>;
-    fn main_events_cleared(&mut self);
-    fn draw(&mut self);
+    fn handle_event(&mut self, event: &WindowEvent, control_flow: &mut ControlFlow);
+    fn main_events_cleared(&mut self, control_flow: &mut ControlFlow);
+    fn draw(&mut self, control_flow: &mut ControlFlow);
+    fn size(&self) -> (u32, u32) {
+        let size = self.instance().inner_size();
+        (size.width, size.height)
+    }
 }
+
+/*pub trait ReWindowUtils: 'static {
+    fn on_instance_return<R>(&self, f: impl FnOnce(&WinitWindow) -> R) -> R;
+}
+
+impl<W: ReWindow> ReWindowUtils for W {
+    fn on_instance_return<R>(&self, f: impl FnOnce(&WinitWindow) -> R) -> R {
+        let mut r = None;
+        self.on_instance(&|w| {
+            r = Some(f(w));
+        });
+        r.unwrap()
+    }
+}*/
 

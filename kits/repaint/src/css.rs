@@ -3,7 +3,7 @@ use std::{any::Any, str::FromStr};
 mod color; pub use color::*;
 
 pub struct Style {
-    declarations: Vec<CssDeclaration>,
+    pub declarations: Vec<CssDeclaration>,
 }
 
 impl Style {

@@ -146,8 +146,8 @@ impl WindowBuilder {
         self
     }
 
-    pub fn content(mut self, content: WindowContent) -> Self {
-        self.props.content = content;
+    pub fn content(mut self, content: impl Into<WindowContent>) -> Self {
+        self.props.content = content.into();
         self
     }
 

@@ -1,3 +1,8 @@
+/*
+WARNING:
+this is an old example. Please refer to basic_functional for the latest version
+*/
+
 #![windows_subsystem = "windows"]
 
 use std::rc::Rc;
@@ -49,7 +54,7 @@ impl Component for UiState {
             .title(&self.title)
             .content(WindowContent {
                 change_text: Box::new(set_title),
-            }.get(cache).into())
+            }.get(cache))
             .on_window_event(|event| {
                 match event {
                     WindowEvent::CloseRequest => nwg::stop_thread_dispatch(),

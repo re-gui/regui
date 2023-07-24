@@ -1,14 +1,12 @@
-
 use std::rc::Rc;
 
-use native_windows_gui as nwg;
-use regui::{StateFunction, component::{FunctionsCache, GetFromCache}};
-
 use crate::{WithNwgControlHandle, NwgNode};
+use native_windows_gui as nwg;
+use regui::{component::{GetFromCache, FunctionsCache}, StateFunction};
 
 use super::{NativeCommonComponent, NativeCommonComponentProps};
 
-impl WithNwgControlHandle for nwg::Label {
+impl WithNwgControlHandle for nwg::ProgressBar {
     fn nwg_control_handle(&self) -> &nwg::ControlHandle {
         &self.handle
     }
@@ -21,38 +19,36 @@ impl WithNwgControlHandle for nwg::Label {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LabelProps {
+pub struct ProgressBarProps {
     pub id: Option<i32>,
-    pub text: String, // TODO cow
+    pub value: f32,
     pub position: Option<(i32, i32)>,
     pub size: Option<(i32, i32)>,
-    // TODO font
-    // TODO alignment
 }
 
-impl Default for LabelProps {
+impl Default for ProgressBarProps {
     fn default() -> Self {
         Self {
             id: None,
-            text: "".into(),
+            value: 0.42,
             position: None,
             size: None,
         }
     }
 }
 
-pub struct LabelPropsBuilder {
-    props: LabelProps,
+pub struct ProgressBarPropsBuilder {
+    props: ProgressBarProps,
 }
 
-impl LabelPropsBuilder {
+impl ProgressBarPropsBuilder {
     pub fn id(mut self, id: i32) -> Self {
         self.props.id = Some(id);
         self
     }
 
-    pub fn text(mut self, text: impl Into<String>) -> Self {
-        self.props.text = text.into();
+    pub fn value(mut self, value: f32) -> Self {
+        self.props.value = value;
         self
     }
 
@@ -66,40 +62,39 @@ impl LabelPropsBuilder {
         self
     }
 
-    pub fn build_props(self) -> LabelProps {
+    pub fn build_props(self) -> ProgressBarProps {
         self.props
     }
 }
 
-impl GetFromCache for LabelPropsBuilder {
+impl GetFromCache for ProgressBarPropsBuilder {
     type Out = NwgNode<nwg::ControlHandle>;
     fn get(self, cache: &FunctionsCache) -> Self::Out {
-        cache.eval::<Label>(self.build_props())
+        cache.eval::<ProgressBar>(self.build_props())
     }
 }
 
-pub struct Label {
-    native: NativeCommonComponent<nwg::Label>,
-    props: LabelProps,
+pub struct ProgressBar {
+    native: NativeCommonComponent<nwg::ProgressBar>,
+    props: ProgressBarProps,
 }
 
-impl Label {
-    pub fn builder() -> LabelPropsBuilder {
-        LabelPropsBuilder {
-            props: LabelProps::default(),
+impl ProgressBar {
+    pub fn builder() -> ProgressBarPropsBuilder {
+        ProgressBarPropsBuilder {
+            props: ProgressBarProps::default(),
         }
     }
 }
 
-impl StateFunction for Label {
-    type Input = LabelProps;
+impl StateFunction for ProgressBar {
+    type Input = ProgressBarProps;
     type Output = NwgNode<nwg::ControlHandle>;
-
     fn build(input: Self::Input) -> (Self::Output, Self) {
         let (node, native) = NativeCommonComponent::build(NativeCommonComponentProps {
             build: Rc::new({
                 let props = input.clone();
-                move |parent| build_nwg_label(parent, &props)
+                move |parent| build_nwg_progress_bar(parent, &props)
             }),
             on_native_event: Rc::new(|_, _, _, _| {}),
             on_event: Rc::new(|_| {}), // TODO
@@ -114,20 +109,21 @@ impl StateFunction for Label {
         )
     }
     fn changed(&mut self, input: Self::Input) -> Self::Output {
-        self.native.if_control(|label| update_nwg_label(label, &input, &self.props));
+        self.native.if_control(|label| update_nwg_progress_bar(label, &input, &self.props));
         self.props = input;
         self.native.get_node()
     }
     // TODO reuse_with
 }
 
-fn build_nwg_label(
+fn build_nwg_progress_bar(
     parent: &nwg::ControlHandle,
-    props: &LabelProps
-) -> nwg::Label {
+    props: &ProgressBarProps
+) -> nwg::ProgressBar {
     let mut label = Default::default();
-    let mut builder = nwg::Label::builder()
-        .text(&props.text)
+    let mut builder = nwg::ProgressBar::builder()
+        .range(0..1000)
+        .pos((props.value * 1000.0) as u32)
         .parent(parent);
 
     if let Some(position) = props.position {
@@ -145,13 +141,13 @@ fn build_nwg_label(
     label
 }
 
-fn update_nwg_label(
-    label: &nwg::Label,
-    props: &LabelProps,
-    old_props: &LabelProps
+fn update_nwg_progress_bar(
+    label: &nwg::ProgressBar,
+    props: &ProgressBarProps,
+    old_props: &ProgressBarProps
 ) {
-    if props.text != old_props.text {
-        label.set_text(&props.text);
+    if props.value != old_props.value {
+        label.set_pos((props.value * 1000.0) as u32);
     }
 
     if props.position != old_props.position {

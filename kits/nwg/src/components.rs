@@ -5,3 +5,4 @@ mod button; pub use button::*;
 mod text_input; pub use text_input::*;
 mod window; pub use window::*;
 mod extern_canvas; pub use extern_canvas::*;
+mod progress; pub use progress::*;

@@ -1,13 +1,39 @@
-use std::{rc::Rc, fmt::Debug, any::Any, cell::RefCell, ops::Deref};
+use std::{rc::Rc, fmt::Debug, any::Any, cell::RefCell};
 
-use crate::component::{FunctionsCache, Component, StateLink};
+use crate::component::{FunctionsCache, Component, StateLink, LiveStateComponent};
+
+pub struct Cx<'a, 'b> {
+    cache: &'a FunctionsCache,
+    state: &'a mut State<'b>,
+}
+
+impl<'a, 'b> Cx<'a, 'b> {
+    pub fn new(cache: &'a FunctionsCache, state: &'a mut State<'b>) -> Self {
+        Self {
+            cache,
+            state,
+        }
+    }
+
+    pub fn cache(&self) -> &'a FunctionsCache {
+        self.cache
+    }
+
+    pub fn use_state<V: 'static>(&mut self, init: impl FnOnce() -> V) -> UseStateHandle<V> {
+        self.state.use_state(init)
+    }
+
+    pub fn use_ref<V: 'static>(&mut self, init: impl FnOnce() -> V) -> Rc<V> {
+        self.state.use_ref(init)
+    }
+}
 
 /// Declares a function component
 ///
 /// # Example
 /// ```ignore
 /// function_component!(pub MyComponent my_component(i32) -> Vec<NwgControlNode>);
-/// fn my_component(props: &i32, cache: &FunctionsCache, state: &mut State) -> Vec<NwgControlNode> {
+/// fn my_component(props: &i32, cx: &mut Cx) -> Vec<NwgControlNode> {
 ///     // ...
 /// }
 /// ```
@@ -16,51 +42,53 @@ use crate::component::{FunctionsCache, Component, StateLink};
 /// - `function_component!(pub MyComponent ...)` declares a public component
 /// - `function_component!(priv MyComponent ...)` declares a private component
 /// - `function_component!(MyComponent ...)` also declares a private component
+/// 
+/// You can also embed doc comments:
+/// ```ignore
+/// function_component!(
+///     /// This is a component
+///     pub MyComponent my_component(i32) -> Vec<NwgControlNode>
+/// );
+/// ```
 #[macro_export]
 macro_rules! decl_function_component {
-    (pub $name:ident $func_name:ident ($props:ty) -> $out:ty) => {
+    ($(#[$outer:meta])* pub $name:ident $func_name:ident ($props:ty) -> $out:ty) => {
+        $(#[$outer])*
         pub struct $name;
         impl $crate::function_component::ComponentFunction for $name {
             type Props = $props;
             type Out = $out;
             fn call<'a>(props: &Self::Props, cache: &$crate::component::FunctionsCache, state: &mut $crate::function_component::State<'a>) -> Self::Out {
-                $func_name(props, cache, state)
-            }
-        }
-        impl $crate::component::EvalFromCache for $name {
-            type Input = $props;
-            type Out = $out;
-            fn eval(cache: &FunctionsCache, input: Self::Input) -> Self::Out {
-                cache.eval_live::<$crate::component::LiveStateComponent<$crate::function_component::FunctionComponent<$name>>, $out>(input)
+                let mut cx = $crate::function_component::Cx::new(cache, state);
+                $func_name(props, &mut cx)
             }
         }
     };
-    (priv $name:ident $func_name:ident ($props:ty) -> $out:ty) => {
+    ($(#[$outer:meta])* priv $name:ident $func_name:ident ($props:ty) -> $out:ty) => {
+        $(#[$outer])*
         struct $name;
         impl $crate::function_component::ComponentFunction for $name {
             type Props = $props;
             type Out = $out;
             fn call<'a>(props: &Self::Props, cache: &$crate::component::FunctionsCache, state: &mut State<'a>) -> Self::Out {
-                $func_name(props, cache, state)
-            }
-        }
-        impl $crate::component::EvalFromCache for $name {
-            type Input = $props;
-            type Out = $out;
-            fn eval(cache: &FunctionsCache, input: Self::Input) -> Self::Out {
-                cache.eval_live::<$crate::component::LiveStateComponent<$crate::function_component::FunctionComponent<$name>>, $out>(input)
+                //$func_name(props, cache, state)
+                let mut cx = $crate::function_component::Cx::new(cache, state);
+                $func_name(props, &mut cx)
             }
         }
     };
-    ($name:ident $func_name:ident ($props:ty) -> $out:ty) => {
-        decl_function_component!(priv $name $func_name ($props) -> $out);
+    ($(#[$outer:meta])* $name:ident $func_name:ident ($props:ty) -> $out:ty) => {
+        decl_function_component!($(#[$outer])* priv $name $func_name ($props) -> $out);
     }
 }
 
-pub trait ComponentFunction: 'static {
+pub trait ComponentFunction: 'static + Sized {
     type Props;
     type Out: Clone + PartialEq;
     fn call<'a>(props: &Self::Props, cache: &FunctionsCache, state: &mut State<'a>) -> Self::Out;
+    fn eval(cx: &mut Cx, props: Self::Props) -> Self::Out {
+        cx.cache().eval_live::<LiveStateComponent<FunctionComponent<Self>>, Self::Out>(props)
+    }
 }
 
 pub struct FunctionComponent<F: ComponentFunction> {
@@ -147,6 +175,24 @@ impl<'a> State<'a> {
             }),
         }
     }
+
+    pub fn use_ref<V: 'static>(&mut self, init: impl FnOnce() -> V) -> Rc<V> {
+        // TODO this implementation is not very generic
+        // implement the generic hooks and use_reducer, implement use_state in terms of use_reducer and hooks
+
+        let value = if self.current_pos < self.manager.state_values.len() {
+            let value = self.manager.state_values[self.current_pos].clone().downcast::<V>().unwrap();
+            self.current_pos += 1;
+            value
+        } else {
+            let value = Rc::new(init());
+            self.manager.state_values.push(value.clone());
+            self.current_pos = self.manager.state_values.len();
+            value
+        };
+
+        value
+    }
 }
 
 impl<'a> Drop for State<'a> {
@@ -167,16 +213,23 @@ impl<V: Debug> Debug for UseStateHandle<V> {
     }
 }
 
-impl<V: Clone> UseStateHandle<V> {
+impl<V> UseStateHandle<V> {
     pub fn set(&self, value: V) {
         (self.setter)(value);
     }
-    pub fn get(&self) -> V {
+    pub fn get(&self) -> V
+    where
+        V: Clone,
+    {
         self.value.borrow().clone()
     }
     pub fn on_value<Out>(&self, callback: impl FnOnce(&V) -> Out) -> Out {
         let value = self.value.borrow();
-        callback(value.deref())
+        callback(&*value)
+    }
+    pub fn on_mut_value<Out>(&self, callback: impl FnOnce(&mut V) -> Out) -> Out {
+        let mut value = self.value.borrow_mut();
+        callback(&mut *value)
     }
 }
 

@@ -23,16 +23,18 @@ edition = "2021"
 
 [workspace]
 members = [
-    "kits/nwg",
+    #"kits/nwg",
     #"kits/relm"
     #"kits/qt-widgets",
     #"kits/repaint",
+    "kits/iui",
 ]
 default-members = [
-    "kits/nwg",
+    #"kits/nwg",
     #"kits/relm"
     #"kits/qt-widgets",
     #"kits/repaint",
+    "kits/iui",
 ]
 
 [dependencies]

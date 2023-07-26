@@ -260,17 +260,6 @@ pub trait Component: Sized + 'static { // TODO remove 'static
     // TODO reuse with component
 }
 
-pub trait GetFromCache {
-    type Out;
-    fn get(self, cache: &FunctionsCache) -> Self::Out;
-}
-
-pub trait EvalFromCache {
-    type Out;
-    type Input;
-    fn eval(cache: &FunctionsCache, input: Self::Input) -> Self::Out;
-}
-
 pub struct LiveStateComponent<SC: Component> {
     state_manager: Rc<RefCell<StateManager<SC>>>,
     _components_cache: Rc<RefCell<FunctionsCache>>,

@@ -15,12 +15,12 @@ fn main() {
     nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
 
     // run the ui loop, using the function component `ExampleUi`
-    run_ui::<FunctionComponent<ExampleUi>>(());
+    run_ui::<FunctionComponent<Ui>>(());
 }
 
-decl_function_component!(ExampleUi example_ui(()) -> ());
+decl_function_component!(Ui ui(()) -> ());
 
-fn example_ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
+fn ui(_props: &(), cache: &FunctionsCache, state: &mut State) -> () {
     // prepare the icon of the window. It will be initialized only once, and then reused
     let icon = state.use_state(|| {
         const LOGO_PNG: &[u8] = include_bytes!("logo.png");

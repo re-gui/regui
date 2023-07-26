@@ -1,7 +1,7 @@
 
 use std::{rc::Rc, cell::RefCell, ops::Deref};
 
-use native_windows_gui as nwg;
+pub use native_windows_gui as nwg;
 
 use regui::{StateFunction, component::{Component, LiveStateComponent}};
 

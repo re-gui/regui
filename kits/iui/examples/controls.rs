@@ -139,6 +139,7 @@ fn ui(ui: &UI, cx: &mut Cx) -> () {
 
     let _win = Window::builder(ui)
         .title(&format!("{}", counter.get()))
+        .initial_size(400, 400)
         .child(hbox)
         .get(cx);
 }

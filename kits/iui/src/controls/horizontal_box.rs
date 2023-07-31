@@ -69,18 +69,18 @@ impl HorizontalBox {
 }
 
 fn horizontal_box(props: &VertialBoxProps, cx: &mut Cx) -> Control {
-    let vbox = cx.use_state(|| {
-        let mut vbox = IuiHorizontalBox::new(&props.ui);
+    let hbox = cx.use_state(|| {
+        let mut hbox = IuiHorizontalBox::new(&props.ui);
         for (child, layout_strategy) in &props.children {
-            vbox.append(&props.ui, child.control.deref().clone(), layout_strategy.clone().0);
+            hbox.append(&props.ui, child.control.deref().clone(), layout_strategy.clone().0);
         }
-        vbox
+        hbox
     });
-    let control = cx.use_ref(|| Control::new(vbox.get()));
+    let control = cx.use_ref(|| Control::new(hbox.get()));
 
-    let mut vbox = vbox.get();
+    let mut hbox = hbox.get();
 
-    vbox.set_padded(&props.ui, props.padded);
+    hbox.set_padded(&props.ui, props.padded);
 
     let old_children = cx.use_state(|| props.children.clone());
 

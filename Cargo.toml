@@ -28,6 +28,7 @@ members = [
     #"kits/qt-widgets",
     #"kits/repaint",
     "kits/iui",
+    #"kits/iui_raw",
 ]
 default-members = [
     #"kits/nwg",
@@ -35,6 +36,7 @@ default-members = [
     #"kits/qt-widgets",
     #"kits/repaint",
     "kits/iui",
+    #"kits/iui_raw",
 ]
 
 [dependencies]

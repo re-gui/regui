@@ -12,6 +12,7 @@ pub struct GroupProps {
     pub title: String,
     pub margined: bool,
     pub child: Option<Control>,
+    pub enabled: bool,
 }
 
 impl GroupProps {
@@ -21,6 +22,7 @@ impl GroupProps {
             title: "".into(),
             margined: false,
             child: None,
+            enabled: true,
         }
     }
     pub fn title(mut self, title: &str) -> Self {
@@ -33,6 +35,10 @@ impl GroupProps {
     }
     pub fn child(mut self, child: Control) -> Self {
         self.child = Some(child);
+        self
+    }
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
         self
     }
     pub fn get(self, cx: &mut Cx) -> Control {
@@ -71,6 +77,12 @@ fn group(props: &GroupProps, cx: &mut Cx) -> Control {
         }
     }
     *old_child.deref().borrow_mut() = props.child.clone();
+
+    if props.enabled {
+        group.enable(&props.ui);
+    } else {
+        group.disable(&props.ui);
+    }
 
     control.deref().clone()
 }

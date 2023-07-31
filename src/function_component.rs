@@ -58,9 +58,8 @@ macro_rules! decl_function_component {
         impl $crate::function_component::ComponentFunction for $name {
             type Props = $props;
             type Out = $out;
-            fn call<'a>(props: &Self::Props, cache: &$crate::component::FunctionsCache, state: &mut $crate::function_component::State<'a>) -> Self::Out {
-                let mut cx = $crate::function_component::Cx::new(cache, state);
-                $func_name(props, &mut cx)
+            fn call<'a>(props: &Self::Props, cx: &mut $crate::function_component::Cx) -> Self::Out {
+                $func_name(props, cx)
             }
         }
     };
@@ -70,9 +69,7 @@ macro_rules! decl_function_component {
         impl $crate::function_component::ComponentFunction for $name {
             type Props = $props;
             type Out = $out;
-            fn call<'a>(props: &Self::Props, cache: &$crate::component::FunctionsCache, state: &mut State<'a>) -> Self::Out {
-                //$func_name(props, cache, state)
-                let mut cx = $crate::function_component::Cx::new(cache, state);
+            fn call<'a>(props: &Self::Props, cx: &mut $crate::function_component::Cx) -> Self::Out {
                 $func_name(props, &mut cx)
             }
         }
@@ -85,10 +82,7 @@ macro_rules! decl_function_component {
 pub trait ComponentFunction: 'static + Sized {
     type Props;
     type Out: Clone + PartialEq;
-    fn call<'a>(props: &Self::Props, cache: &FunctionsCache, state: &mut State<'a>) -> Self::Out;
-    fn eval(cx: &mut Cx, props: Self::Props) -> Self::Out {
-        cx.cache().eval_live::<LiveStateComponent<FunctionComponent<Self>>, Self::Out>(props)
-    }
+    fn call<'a>(props: Self::Props, cx: &mut Cx) -> Self::Out;
 }
 
 pub struct FunctionComponent<F: ComponentFunction> {
@@ -97,6 +91,8 @@ pub struct FunctionComponent<F: ComponentFunction> {
 }
 
 impl<F: ComponentFunction> Component for FunctionComponent<F>
+where
+    F::Props: Clone,
 {
     type Props = F::Props;
     type Message = ();
@@ -125,7 +121,8 @@ impl<F: ComponentFunction> Component for FunctionComponent<F>
                 move || link.send_message(())
             }),
         };
-        F::call(&self.props, cache, &mut state)
+        let mut cx = Cx::new(cache, &mut state);
+        F::call(self.props.clone(), &mut cx)
     }
 }
 

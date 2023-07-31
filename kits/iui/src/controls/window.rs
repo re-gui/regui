@@ -12,7 +12,8 @@ use crate::Control;
 pub struct WindowProps {
     ui: UI,
     title: String,
-    child: Option<Control>
+    child: Option<Control>,
+    initial_size: (i32, i32),
 }
 
 impl WindowProps {
@@ -21,6 +22,7 @@ impl WindowProps {
             ui: ui.clone(),
             title: "".into(),
             child: None,
+            initial_size: (200, 200),
         }
     }
     pub fn title(mut self, title: &str) -> Self {
@@ -29,6 +31,10 @@ impl WindowProps {
     }
     pub fn child(mut self, child: Control) -> Self {
         self.child = Some(child);
+        self
+    }
+    pub fn initial_size(mut self, width: i32, height: i32) -> Self {
+        self.initial_size = (width, height);
         self
     }
     pub fn get(self, cx: &mut Cx) {
@@ -46,7 +52,7 @@ impl Window {
 
 fn window(props: &WindowProps, cx: &mut Cx) -> () {
     let win = cx.use_state(|| {
-        let mut win = IuiWindow::new(&props.ui, &props.title, 200, 200, WindowType::NoMenubar);
+        let mut win = IuiWindow::new(&props.ui, &props.title, props.initial_size.0, props.initial_size.1, WindowType::NoMenubar);
         if let Some(child) = &props.child {
             win.set_child(&props.ui, child.control.deref().clone());
         }
